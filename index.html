@@ -1343,6 +1343,9 @@
                     currentChars = decryptedData.currentChars || [];
                     saveDictationMistakes();
                     saveSoundMistakes();
+                    // 保存合并后的统计数据并同步到云端
+                    saveLocalData();
+                    autoSync();
                     console.log('Cloud data loaded:', { dictationMistakes: dictationMistakes.length, soundMistakes: soundMistakes.length, stats, currentCharsCount: currentChars.length });
                 }
             }
@@ -1518,6 +1521,9 @@
                                 currentChars = decryptedData.currentChars || [];
                                 saveDictationMistakes();
                                 saveSoundMistakes();
+                                // 保存合并后的统计数据并同步到云端
+                                saveLocalData();
+                                autoSync();
                                 console.log('Cloud data restored:', { dictationMistakes: dictationMistakes.length, soundMistakes: soundMistakes.length, stats, currentCharsCount: currentChars.length });
                             }
                         } else {
