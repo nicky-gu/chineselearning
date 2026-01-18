@@ -1004,7 +1004,8 @@
             });
 
             if (!response.ok) {
-                throw new Error('创建 Gist 失败');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(`GitHub API 错误 (${response.status}): ${errorData.message || response.statusText}`);
             }
 
             const gist = await response.json();
@@ -1025,8 +1026,17 @@
             };
             const encrypted = encryptData(data, pin);
 
+            // 检查数据大小（Gist 有大小限制）
+            const contentSize = JSON.stringify({ encrypted: encrypted, userId: '' }).length;
+            if (contentSize > 10000000) { // 10MB
+                throw new Error('数据太大，无法同步');
+            }
+
             // 获取现有 Gist 内容以保持文件名和结构
             const getResponse = await fetch(gistApiUrl);
+            if (!getResponse.ok) {
+                throw new Error(`获取 Gist 失败 (${getResponse.status})`);
+            }
             const existingGist = await getResponse.json();
             const fileName = Object.keys(existingGist.files)[0];
             const existingUserId = JSON.parse(existingGist.files[fileName].content).userId;
@@ -1048,7 +1058,8 @@
             });
 
             if (!response.ok) {
-                throw new Error('更新 Gist 失败');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(`GitHub API 错误 (${response.status}): ${errorData.message || response.statusText}`);
             }
 
             return await response.json();
