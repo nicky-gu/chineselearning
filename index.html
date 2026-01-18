@@ -949,9 +949,9 @@
         let currentUser = null;  // { gistUrl: string, gistId: string, gistApiUrl: string }
         let currentPin = null;   // 存储在内存中，用于加密解密
 
-        // GitHub Token（用于创建和更新 Gist）
-        // 在 GitHub Actions 构建时会被替换为真实 token
-        const GITHUB_TOKEN = 'HANZI_GITHUB_TOKEN_PLACEHOLDER';
+        // Cloudflare Workers API 地址（代理 GitHub API，保护 Token）
+        // 部署后替换为你的 Workers URL
+        const API_BASE_URL = 'https://hanzi-learning-api.your-subdomain.workers.dev';
 
         // 加密/解密函数 (使用 AES)
         function encryptData(data, pin) {
@@ -977,7 +977,7 @@
             return `user_${timestamp}_${random}`;
         }
 
-        // GitHub Gist API 函数
+        // GitHub Gist API 函数（通过 Cloudflare Workers 代理）
         async function createGist(pin) {
             const userId = generateUserId();
             const data = {
@@ -998,18 +998,18 @@
                 }
             };
 
-            const response = await fetch('https://api.github.com/gists', {
+            // 通过 Cloudflare Workers 代理调用
+            const response = await fetch(`${API_BASE_URL}/api/gists`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${GITHUB_TOKEN}`
                 },
                 body: JSON.stringify(gistData)
             });
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(`GitHub API 错误 (${response.status}): ${errorData.message || response.statusText}`);
+                throw new Error(`API 错误 (${response.status}): ${errorData.message || response.statusText}`);
             }
 
             const gist = await response.json();
@@ -1021,7 +1021,7 @@
             };
         }
 
-        async function updateGist(gistApiUrl, pin) {
+        async function updateGist(gistId, pin) {
             const data = {
                 mistakes: mistakes,
                 stats: stats,
@@ -1036,44 +1036,29 @@
                 throw new Error('数据太大，无法同步');
             }
 
-            // 获取现有 Gist 内容以保持文件名和结构
-            const getResponse = await fetch(gistApiUrl, {
-                headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}` }
-            });
-            if (!getResponse.ok) {
-                throw new Error(`获取 Gist 失败 (${getResponse.status})`);
-            }
-            const existingGist = await getResponse.json();
-            const fileName = Object.keys(existingGist.files)[0];
-            const existingUserId = JSON.parse(existingGist.files[fileName].content).userId;
-
-            const gistData = {
-                files: {
-                    [fileName]: {
-                        content: JSON.stringify({ encrypted: encrypted, userId: existingUserId })
-                    }
-                }
-            };
-
-            const response = await fetch(gistApiUrl, {
+            // 通过 Cloudflare Workers 代理更新 Gist
+            const response = await fetch(`${API_BASE_URL}/api/gists/${gistId}`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${GITHUB_TOKEN}`
                 },
-                body: JSON.stringify(gistData)
+                body: JSON.stringify({
+                    content: JSON.stringify({ encrypted: encrypted, userId: '' })
+                })
             });
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(`GitHub API 错误 (${response.status}): ${errorData.message || response.statusText}`);
+                throw new Error(`API 错误 (${response.status}): ${errorData.message || response.statusText}`);
             }
 
             return await response.json();
         }
 
         async function getGist(gistId) {
-            const response = await fetch(`https://api.github.com/gists/${gistId}`);
+            // 获取公开的 Gist 不需要 token，可以直接调用 GitHub API
+            // 也可以通过 Workers 代理调用
+            const response = await fetch(`${API_BASE_URL}/api/gists/${gistId}`);
             if (!response.ok) {
                 throw new Error('获取 Gist 失败');
             }
@@ -1220,7 +1205,7 @@
             updateSyncStatus('syncing', '正在同步...');
 
             try {
-                await updateGist(currentUser.gistApiUrl, currentPin);
+                await updateGist(currentUser.gistId, currentPin);
                 updateSyncStatus('synced', '同步成功: ' + new Date().toLocaleTimeString());
             } catch (error) {
                 console.error('Sync error:', error);
@@ -1236,7 +1221,7 @@
                 // 延迟同步，避免频繁请求
                 if (window.syncTimeout) clearTimeout(window.syncTimeout);
                 window.syncTimeout = setTimeout(() => {
-                    updateGist(currentUser.gistApiUrl, currentPin)
+                    updateGist(currentUser.gistId, currentPin)
                         .then(() => updateSyncStatus('synced', '已自动同步'))
                         .catch(err => console.log('Auto sync failed:', err));
                 }, 3000);
