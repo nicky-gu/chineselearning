@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  email         String?  @unique
+  pin           String?  @unique
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  learningData  LearningData?
+  aiInteractions AiInteraction[]
+  aiUsageQuotas AiUsageQuota[]
+
+  @@map("users")
+}
+
+model LearningData {
+  id                 String   @id @default(uuid()) @db.Uuid
+  userId             String   @unique @map("user_id") @db.Uuid
+  pinyinPractice     Json?    @map("pinyin_practice")
+  dictationPractice  Json?    @map("dictation_practice")
+  soundGame          Json?    @map("sound_game")
+  mistakesDictation  Json?    @map("mistakes_dictation")
+  mistakesSound      Json?    @map("mistakes_sound")
+  statistics         Json?
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("learning_data")
+}
+
+model AiInteraction {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  interactionType String   @map("interaction_type")
+  inputData       Json     @map("input_data")
+  aiResponse      Json     @map("ai_response")
+  modelUsed       String   @map("model_used")
+  tokensUsed      Int      @default(0) @map("tokens_used")
+  createdAt       DateTime @default(now()) @map("created_at")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("ai_interactions")
+}
+
+model AiUsageQuota {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  date          DateTime @map("date") @db.Date
+  requestCount  Int      @default(0) @map("request_count")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("ai_usage_quotas")
+}
