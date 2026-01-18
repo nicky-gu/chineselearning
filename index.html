@@ -955,11 +955,18 @@
         const SUPABASE_URL = 'https://febjcxekwzuzyzzvudsj.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZlYmpjeGVrd3p1enl6enZ1ZHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2NzExNzYsImV4cCI6MjA4NDI0NzE3Nn0.igxKXfuiLWYJWJHOq5cYSjDMvtqBnQdmo20X0gyqMjc';
 
-        // 初始化 Supabase 客户端
-        const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
-        if (!supabaseClient) {
-            console.log('Supabase not configured');
+        // 初始化 Supabase 客户端（等待 SDK 加载）
+        let supabaseClient = null;
+        function initSupabase() {
+            if (window.supabase) {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                console.log('Supabase client initialized');
+            } else {
+                console.log('Waiting for Supabase SDK to load...');
+                setTimeout(initSupabase, 100);
+            }
         }
+        initSupabase();
 
         // 加密/解密函数 (使用 AES)
         function encryptData(data, pin) {
