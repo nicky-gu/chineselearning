@@ -1317,7 +1317,29 @@
                             dictationMistakes.push({ text: text, count: typeof m === 'object' ? m.count : 1, firstWrong: new Date().toISOString(), lastWrong: new Date().toISOString() });
                         });
                     }
-                    stats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
+                    // 合并统计数据：取本地和云端的最大值
+                    const cloudStats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
+                    stats.totalLearned = Math.max(stats.totalLearned || 0, cloudStats.totalLearned || 0);
+                    stats.totalPractice = Math.max(stats.totalPractice || 0, cloudStats.totalPractice || 0);
+                    stats.correctCount = Math.max(stats.correctCount || 0, cloudStats.correctCount || 0);
+                    // 合并已学字词列表
+                    if (cloudStats.learnedWords && cloudStats.learnedWords.length > 0) {
+                        if (!stats.learnedWords) stats.learnedWords = [];
+                        cloudStats.learnedWords.forEach(word => {
+                            if (!stats.learnedWords.includes(word)) {
+                                stats.learnedWords.push(word);
+                            }
+                        });
+                    }
+                    // 最后练习时间取最新的
+                    if (cloudStats.lastPractice) {
+                        const localTime = stats.lastPractice ? new Date(stats.lastPractice).getTime() : 0;
+                        const cloudTime = new Date(cloudStats.lastPractice).getTime();
+                        if (cloudTime > localTime) {
+                            stats.lastPractice = cloudStats.lastPractice;
+                        }
+                    }
+
                     currentChars = decryptedData.currentChars || [];
                     saveDictationMistakes();
                     saveSoundMistakes();
@@ -1470,7 +1492,29 @@
                                         dictationMistakes.push({ text: text, count: typeof m === 'object' ? m.count : 1, firstWrong: new Date().toISOString(), lastWrong: new Date().toISOString() });
                                     });
                                 }
-                                stats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
+                                // 合并统计数据：取本地和云端的最大值
+                                const cloudStats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
+                                stats.totalLearned = Math.max(stats.totalLearned || 0, cloudStats.totalLearned || 0);
+                                stats.totalPractice = Math.max(stats.totalPractice || 0, cloudStats.totalPractice || 0);
+                                stats.correctCount = Math.max(stats.correctCount || 0, cloudStats.correctCount || 0);
+                                // 合并已学字词列表
+                                if (cloudStats.learnedWords && cloudStats.learnedWords.length > 0) {
+                                    if (!stats.learnedWords) stats.learnedWords = [];
+                                    cloudStats.learnedWords.forEach(word => {
+                                        if (!stats.learnedWords.includes(word)) {
+                                            stats.learnedWords.push(word);
+                                        }
+                                    });
+                                }
+                                // 最后练习时间取最新的
+                                if (cloudStats.lastPractice) {
+                                    const localTime = stats.lastPractice ? new Date(stats.lastPractice).getTime() : 0;
+                                    const cloudTime = new Date(cloudStats.lastPractice).getTime();
+                                    if (cloudTime > localTime) {
+                                        stats.lastPractice = cloudStats.lastPractice;
+                                    }
+                                }
+
                                 currentChars = decryptedData.currentChars || [];
                                 saveDictationMistakes();
                                 saveSoundMistakes();
