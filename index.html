@@ -2907,7 +2907,13 @@
                         <p style="color: #666; margin-bottom: 10px;">🕐 最后练习：${lastPractice}</p>
                     </div>
                     <div style="background: #fff9e6; padding: 15px; border-radius: 10px; margin-top: 10px;">
-                        <h3 style="color: #667eea; margin-bottom: 10px; font-size: 1.1em;">📚 已学字词列表</h3>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h3 style="color: #667eea; margin: 0; font-size: 1.1em;">📚 已学字词列表 (${stats.learnedWords.length})</h3>
+                            <div style="display: flex; gap: 8px;">
+                                <button onclick="practiceAllLearnedWordsPinyin()" style="padding: 8px 15px; font-size: 0.9em; font-weight: bold; cursor: pointer; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px;">✍️ 看字选拼音</button>
+                                <button onclick="practiceAllLearnedWordsSound()" style="padding: 8px 15px; font-size: 0.9em; font-weight: bold; cursor: pointer; background: linear-gradient(135deg, #764ba2 0%, #667eea 100%); color: white; border: none; border-radius: 8px;">👂 听音选汉字</button>
+                            </div>
+                        </div>
                         <div style="display: flex; flex-wrap: wrap; gap: 8px;">
                 `;
                 stats.learnedWords.slice().reverse().forEach(word => {
@@ -2921,6 +2927,40 @@
             } else {
                 listContainer.innerHTML = `<p style="text-align: center; color: #999; padding: 20px;">还没有学习记录，开始学习吧！</p>`;
             }
+        }
+
+        // 用所有已学字词进行看字选拼音练习
+        function practiceAllLearnedWordsPinyin() {
+            const words = stats.learnedWords || [];
+
+            if (words.length < 1) {
+                alert('暂无已学字词');
+                return;
+            }
+
+            // 切换到看字选拼音练习标签
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.practice-section').forEach(s => s.classList.remove('active'));
+            document.querySelector('[data-tab="practice"]').classList.add('active');
+            document.getElementById('practice-section').classList.add('active');
+            showPinyinQuizUI(document.getElementById('practice-content'), words);
+        }
+
+        // 用所有已学字词进行听音选汉字练习
+        function practiceAllLearnedWordsSound() {
+            const words = stats.learnedWords || [];
+
+            if (words.length < 2) {
+                alert('至少需要2个已学字词才能开始听音选字练习');
+                return;
+            }
+
+            // 切换到听音选字练习标签
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.practice-section').forEach(s => s.classList.remove('active'));
+            document.querySelector('[data-tab="sound"]').classList.add('active');
+            document.getElementById('sound-section').classList.add('active');
+            startGameWithWords(words);
         }
 
         // 语音功能
