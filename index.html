@@ -994,7 +994,8 @@
             }
 
             // 将 PIN 码作为 email（因为 Supabase Auth 需要 email 格式）
-            const email = `pin_${pin}@hanzi-learning.internal`;
+            // 使用 example.com 保留域名（IANA 标准）
+            const email = `pin${pin}@example.com`;
 
             // 尝试登录
             const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
