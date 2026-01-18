@@ -946,29 +946,42 @@
         let gameTotal = 0;
         let soundAnswered = false;
 
-        // ========== 云同步相关 ==========
-        let currentUser = null;  // { user: object, session: object }
-        let currentPin = null;   // 存储在内存中，用于加密解密
+        // ========== 云同步模块 ==========
 
-        // Supabase 配置
-        // Supabase 项目 URL 和 anon key
+        // 常量配置
         const SUPABASE_URL = 'https://febjcxekwzuzyzzvudsj.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZlYmpjeGVrd3p1enl6enZ1ZHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2NzExNzYsImV4cCI6MjA4NDI0NzE3Nn0.igxKXfuiLWYJWJHOq5cYSjDMvtqBnQdmo20X0gyqMjc';
+        const MAX_ENCRYPTED_DATA_SIZE = 10 * 1024 * 1024;  // 10MB
+        const AUTO_SYNC_DELAY_MS = 3000;
+        const PIN_LENGTH = 8;
+        const EMAIL_DOMAIN = 'example.com';
+        const ERROR_NO_DATA = 'PGRST116';
 
-        // 初始化 Supabase 客户端（等待 SDK 加载）
+        // 状态变量
+        let currentUser = null;
+        let currentPin = null;
         let supabaseClient = null;
+        let syncTimeout = null;
+
+        // DOM 元素缓存
+        let userInfoSection = null;
+        let loginPrompt = null;
+        let syncStatusDiv = null;
+        let syncStatusText = null;
+        let syncBtn = null;
+
+        // ---------- Supabase 客户端初始化 ----------
         function initSupabase() {
             if (window.supabase) {
                 supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                 console.log('Supabase client initialized');
-            } else {
-                console.log('Waiting for Supabase SDK to load...');
-                setTimeout(initSupabase, 100);
+                return;
             }
+            setTimeout(initSupabase, 100);
         }
         initSupabase();
 
-        // 加密/解密函数 (使用 AES)
+        // ---------- 数据加密/解密 ----------
         function encryptData(data, pin) {
             const jsonString = JSON.stringify(data);
             return CryptoJS.AES.encrypt(jsonString, pin).toString();
@@ -985,39 +998,27 @@
             }
         }
 
-        // Supabase Auth + 数据存储函数（工业级安全）
-
-        // 注册/登录 - 使用 Supabase Auth
+        // ---------- 认证函数 ----------
         async function authenticateWithPin(pin) {
             if (!supabaseClient) {
                 throw new Error('Supabase 未配置');
             }
 
-            // 将 PIN 码作为 email（因为 Supabase Auth 需要 email 格式）
-            // 使用 example.com 保留域名（IANA 标准）
-            const email = `pin${pin}@example.com`;
+            const email = `pin${pin}@${EMAIL_DOMAIN}`;
 
-            // 尝试登录
             const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
                 email: email,
                 password: pin
             });
 
             if (!signInError) {
-                // 登录成功
                 return { user: signInData.user, session: signInData.session, isNew: false };
             }
 
-            // 如果登录失败，尝试注册
             if (signInError.message === 'Invalid login credentials') {
                 const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({
                     email: email,
-                    password: pin,
-                    options: {
-                        data: {
-                            pin_hash: 'handled_by_supabase' // Supabase 会自动 bcrypt 哈希
-                        }
-                    }
+                    password: pin
                 });
 
                 if (signUpError) {
@@ -1030,7 +1031,7 @@
             throw new Error(signInError.message);
         }
 
-        // 保存用户数据（使用 RLS 保护，只能访问自己的数据）
+        // ---------- 数据存储函数 ----------
         async function saveUserData(userId, pin) {
             if (!supabaseClient) {
                 throw new Error('Supabase 未配置');
@@ -1044,16 +1045,14 @@
             };
             const encrypted = encryptData(data, pin);
 
-            // 检查数据大小
-            const contentSize = encrypted.length;
-            if (contentSize > 10000000) {
+            if (encrypted.length > MAX_ENCRYPTED_DATA_SIZE) {
                 throw new Error('数据太大，无法同步');
             }
 
             const { error } = await supabaseClient
                 .from('user_learning_data')
                 .upsert({
-                    user_id: userId,  // Supabase Auth 的 user_id
+                    user_id: userId,
                     encrypted_data: encrypted,
                     updated_at: new Date().toISOString()
                 }, {
@@ -1065,7 +1064,6 @@
             }
         }
 
-        // 加载用户数据
         async function loadUserData(userId) {
             if (!supabaseClient) {
                 throw new Error('Supabase 未配置');
@@ -1078,8 +1076,8 @@
                 .single();
 
             if (error) {
-                if (error.code === 'PGRST116') {
-                    return null; // 没有数据
+                if (error.code === ERROR_NO_DATA) {
+                    return null;
                 }
                 throw new Error(`加载失败: ${error.message}`);
             }
@@ -1087,7 +1085,7 @@
             return data?.encrypted_data || null;
         }
 
-        // 登录模态框控制
+        // ---------- UI 控制函数 ----------
         function openLoginModal() {
             document.getElementById('loginModal').classList.add('active');
             document.getElementById('loginMessage').innerHTML = '';
@@ -1099,83 +1097,11 @@
             document.getElementById('loginModal').classList.remove('active');
         }
 
-        // 登录/注册处理
-        async function handleLogin() {
-            const pin = document.getElementById('pinInput').value.trim();
-            const messageDiv = document.getElementById('loginMessage');
-
-            // 验证输入
-            if (!/^\d{8}$/.test(pin)) {
-                messageDiv.innerHTML = '<div class="error-message">请输入8位数字PIN码</div>';
-                return;
-            }
-
-            messageDiv.innerHTML = '<div class="success-message">正在处理...</div>';
-
-            try {
-                // 使用 Supabase Auth 认证
-                const authResult = await authenticateWithPin(pin);
-                const userId = authResult.user.id;
-
-                if (!authResult.isNew) {
-                    // 现有用户 - 从 Supabase 加载数据
-                    const encryptedData = await loadUserData(userId);
-
-                    if (encryptedData) {
-                        const decryptedData = decryptData(encryptedData, pin);
-                        if (decryptedData) {
-                            mistakes = decryptedData.mistakes || [];
-                            stats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
-                        }
-                    }
-
-                    currentUser = authResult;
-                    currentPin = pin;
-                    saveLocalData();
-                    messageDiv.innerHTML = '<div class="success-message">登录成功！数据已同步</div>';
-                } else {
-                    // 新用户 - 保存当前数据到 Supabase
-                    await saveUserData(userId, pin);
-
-                    currentUser = authResult;
-                    currentPin = pin;
-                    saveLocalData();
-
-                    messageDiv.innerHTML = '<div class="success-message">注册成功！已创建云端备份</div>';
-                }
-
-                // 更新 UI
-                updateLoginUI();
-
-                setTimeout(() => {
-                    closeLoginModal();
-                    updateStatsSection();
-                    updateMistakesSection();
-                }, 1000);
-
-            } catch (error) {
-                console.error('Login error:', error);
-                messageDiv.innerHTML = `<div class="error-message">登录失败: ${error.message}</div>`;
-            }
-        }
-
-        // 退出登录
-        async function handleLogout() {
-            if (confirm('确定要退出登录吗？本地数据将保留，但不会自动同步到云端。')) {
-                // 退出 Supabase Auth
-                if (supabaseClient) {
-                    await supabaseClient.auth.signOut();
-                }
-                currentUser = null;
-                currentPin = null;
-                updateLoginUI();
-            }
-        }
-
-        // 更新登录相关的 UI
         function updateLoginUI() {
-            const userInfoSection = document.getElementById('userInfoSection');
-            const loginPrompt = document.getElementById('loginPrompt');
+            if (!userInfoSection) {
+                userInfoSection = document.getElementById('userInfoSection');
+                loginPrompt = document.getElementById('loginPrompt');
+            }
 
             if (currentUser) {
                 userInfoSection.style.display = 'block';
@@ -1187,23 +1113,107 @@
             }
         }
 
-        // 更新同步状态
         function updateSyncStatus(status, text) {
-            const statusDiv = document.getElementById('syncStatus');
-            const statusText = document.getElementById('syncStatusText');
-
-            statusDiv.className = 'sync-status ' + status;
-            statusText.textContent = text;
+            if (!syncStatusDiv || !syncStatusText) {
+                syncStatusDiv = document.getElementById('syncStatus');
+                syncStatusText = document.getElementById('syncStatusText');
+            }
+            syncStatusDiv.className = 'sync-status ' + status;
+            syncStatusText.textContent = text;
         }
 
-        // 手动同步
+        function showLoginMessage(html) {
+            document.getElementById('loginMessage').innerHTML = html;
+        }
+
+        // ---------- 登录/登出处理 ----------
+        async function handleLogin() {
+            const pin = document.getElementById('pinInput').value.trim();
+
+            if (!isValidPin(pin)) {
+                showLoginMessage('<div class="error-message">请输入8位数字PIN码</div>');
+                return;
+            }
+
+            showLoginMessage('<div class="success-message">正在处理...</div>');
+
+            try {
+                const authResult = await authenticateWithPin(pin);
+                const userId = authResult.user.id;
+
+                if (authResult.isNew) {
+                    await handleNewUser(authResult, pin, userId);
+                } else {
+                    await handleExistingUser(authResult, pin, userId);
+                }
+
+                updateLoginUI();
+                setTimeout(() => {
+                    closeLoginModal();
+                    updateStatsSection();
+                    updateMistakesSection();
+                }, 1000);
+
+            } catch (error) {
+                console.error('Login error:', error);
+                showLoginMessage(`<div class="error-message">登录失败: ${error.message}</div>`);
+            }
+        }
+
+        function isValidPin(pin) {
+            return new RegExp(`^\\d{${PIN_LENGTH}}$`).test(pin);
+        }
+
+        async function handleNewUser(authResult, pin, userId) {
+            await saveUserData(userId, pin);
+            currentUser = authResult;
+            currentPin = pin;
+            saveLocalData();
+            showLoginMessage('<div class="success-message">注册成功！已创建云端备份</div>');
+        }
+
+        async function handleExistingUser(authResult, pin, userId) {
+            const encryptedData = await loadUserData(userId);
+
+            if (encryptedData) {
+                const decryptedData = decryptData(encryptedData, pin);
+                if (decryptedData) {
+                    mistakes = decryptedData.mistakes || [];
+                    stats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
+                }
+            }
+
+            currentUser = authResult;
+            currentPin = pin;
+            saveLocalData();
+            showLoginMessage('<div class="success-message">登录成功！数据已同步</div>');
+        }
+
+        async function handleLogout() {
+            if (!confirm('确定要退出登录吗？本地数据将保留，但不会自动同步到云端。')) {
+                return;
+            }
+
+            if (supabaseClient) {
+                await supabaseClient.auth.signOut();
+            }
+
+            currentUser = null;
+            currentPin = null;
+            updateLoginUI();
+        }
+
+        // ---------- 数据同步函数 ----------
         async function manualSync() {
             if (!currentUser || !currentPin) {
                 alert('请先登录');
                 return;
             }
 
-            const syncBtn = document.getElementById('syncBtn');
+            if (!syncBtn) {
+                syncBtn = document.getElementById('syncBtn');
+            }
+
             syncBtn.disabled = true;
             updateSyncStatus('syncing', '正在同步...');
 
@@ -1218,62 +1228,61 @@
             }
         }
 
-        // 自动同步（在数据变更时调用）
         function autoSync() {
-            if (currentUser && currentPin) {
-                // 延迟同步，避免频繁请求
-                if (window.syncTimeout) clearTimeout(window.syncTimeout);
-                window.syncTimeout = setTimeout(() => {
-                    saveUserData(currentUser.user.id, currentPin)
-                        .then(() => updateSyncStatus('synced', '已自动同步'))
-                        .catch(err => console.log('Auto sync failed:', err));
-                }, 3000);
+            if (!currentUser || !currentPin) {
+                return;
             }
+
+            if (syncTimeout) {
+                clearTimeout(syncTimeout);
+            }
+
+            syncTimeout = setTimeout(async () => {
+                try {
+                    await saveUserData(currentUser.user.id, currentPin);
+                    updateSyncStatus('synced', '已自动同步');
+                } catch (error) {
+                    console.log('Auto sync failed:', error);
+                }
+            }, AUTO_SYNC_DELAY_MS);
         }
 
-        // 保存本地数据
         function saveLocalData() {
             localStorage.setItem('hanzi_mistakes', JSON.stringify(mistakes));
             localStorage.setItem('hanzi_stats', JSON.stringify(stats));
         }
 
-        // 初始化：检查是否有已登录用户
         function initCloudSync() {
-            // 检查 Supabase 是否配置
             if (!supabaseClient || SUPABASE_URL === 'YOUR_SUPABASE_URL') {
                 console.log('Supabase 未配置，云端同步功能不可用');
             }
             updateLoginUI();
         }
 
-        // 原始保存函数（只保存到 localStorage）
-        function saveMistakes() {
+        // ---------- 数据保存函数（带自动同步） ----------
+        function saveMistakesToLocal() {
             localStorage.setItem('hanzi_mistakes', JSON.stringify(mistakes));
         }
 
-        function saveStats() {
+        function saveStatsToLocal() {
             stats.lastPractice = new Date().toISOString();
             localStorage.setItem('hanzi_stats', JSON.stringify(stats));
         }
 
-        // 覆盖原有的保存函数以支持自动同步
-        const originalSaveMistakes = saveMistakes;
-        const originalSaveStats = saveStats;
-
         function saveMistakes() {
-            originalSaveMistakes();
+            saveMistakesToLocal();
             autoSync();
         }
 
         function saveStats() {
-            originalSaveStats();
+            saveStatsToLocal();
             autoSync();
         }
 
-        // 页面加载时初始化
-        window.addEventListener('load', () => {
-            initCloudSync();
-        });
+        // 页面初始化
+        window.addEventListener('load', initCloudSync);
+
+        // ========== 核心学习功能 ==========
 
         // 初始化标签页切换
         document.querySelectorAll('.tab-btn').forEach(btn => {
