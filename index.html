@@ -1344,7 +1344,6 @@
             currentPin = pin;
             saveSession(pin);
             saveLocalData();
-            updateAddedWordsPreview();
             updateAllSections();
             console.log('Existing user logged in:', { userId, hasPin: !!currentPin });
             showLoginMessage('<div class="success-message">登录成功！数据已同步</div>');
