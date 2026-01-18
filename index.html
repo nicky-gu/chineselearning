@@ -956,12 +956,8 @@
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZlYmpjeGVrd3p1enl6enZ1ZHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2NzExNzYsImV4cCI6MjA4NDI0NzE3Nn0.igxKXfuiLWYJWJHOq5cYSjDMvtqBnQdmo20X0gyqMjc';
 
         // 初始化 Supabase 客户端
-        let supabase = null;
-        try {
-            if (SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
-                supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            }
-        } catch (e) {
+        const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+        if (!supabaseClient) {
             console.log('Supabase not configured');
         }
 
@@ -986,7 +982,7 @@
 
         // 注册/登录 - 使用 Supabase Auth
         async function authenticateWithPin(pin) {
-            if (!supabase) {
+            if (!supabaseClient) {
                 throw new Error('Supabase 未配置');
             }
 
@@ -994,7 +990,7 @@
             const email = `pin_${pin}@hanzi-learning.internal`;
 
             // 尝试登录
-            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
                 email: email,
                 password: pin
             });
@@ -1006,7 +1002,7 @@
 
             // 如果登录失败，尝试注册
             if (signInError.message === 'Invalid login credentials') {
-                const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({
                     email: email,
                     password: pin,
                     options: {
@@ -1028,7 +1024,7 @@
 
         // 保存用户数据（使用 RLS 保护，只能访问自己的数据）
         async function saveUserData(userId, pin) {
-            if (!supabase) {
+            if (!supabaseClient) {
                 throw new Error('Supabase 未配置');
             }
 
@@ -1046,7 +1042,7 @@
                 throw new Error('数据太大，无法同步');
             }
 
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from('user_learning_data')
                 .upsert({
                     user_id: userId,  // Supabase Auth 的 user_id
@@ -1063,11 +1059,11 @@
 
         // 加载用户数据
         async function loadUserData(userId) {
-            if (!supabase) {
+            if (!supabaseClient) {
                 throw new Error('Supabase 未配置');
             }
 
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('user_learning_data')
                 .select('encrypted_data')
                 .eq('user_id', userId)
@@ -1159,8 +1155,8 @@
         async function handleLogout() {
             if (confirm('确定要退出登录吗？本地数据将保留，但不会自动同步到云端。')) {
                 // 退出 Supabase Auth
-                if (supabase) {
-                    await supabase.auth.signOut();
+                if (supabaseClient) {
+                    await supabaseClient.auth.signOut();
                 }
                 currentUser = null;
                 currentPin = null;
@@ -1236,7 +1232,7 @@
         // 初始化：检查是否有已登录用户
         function initCloudSync() {
             // 检查 Supabase 是否配置
-            if (!supabase || SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+            if (!supabaseClient || SUPABASE_URL === 'YOUR_SUPABASE_URL') {
                 console.log('Supabase 未配置，云端同步功能不可用');
             }
             updateLoginUI();
