@@ -947,7 +947,7 @@
         let soundAnswered = false;
 
         // ========== 云同步相关 ==========
-        let currentUser = null;  // { pin: string }
+        let currentUser = null;  // { user: object, session: object }
         let currentPin = null;   // 存储在内存中，用于加密解密
 
         // Supabase 配置
@@ -982,15 +982,52 @@
             }
         }
 
-        // 生成唯一的用户ID
-        function generateUserId() {
-            const timestamp = Date.now().toString(36);
-            const random = Math.random().toString(36).substring(2, 8);
-            return `user_${timestamp}_${random}`;
+        // Supabase Auth + 数据存储函数（工业级安全）
+
+        // 注册/登录 - 使用 Supabase Auth
+        async function authenticateWithPin(pin) {
+            if (!supabase) {
+                throw new Error('Supabase 未配置');
+            }
+
+            // 将 PIN 码作为 email（因为 Supabase Auth 需要 email 格式）
+            const email = `pin_${pin}@hanzi-learning.internal`;
+
+            // 尝试登录
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+                email: email,
+                password: pin
+            });
+
+            if (!signInError) {
+                // 登录成功
+                return { user: signInData.user, session: signInData.session, isNew: false };
+            }
+
+            // 如果登录失败，尝试注册
+            if (signInError.message === 'Invalid login credentials') {
+                const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+                    email: email,
+                    password: pin,
+                    options: {
+                        data: {
+                            pin_hash: 'handled_by_supabase' // Supabase 会自动 bcrypt 哈希
+                        }
+                    }
+                });
+
+                if (signUpError) {
+                    throw new Error(`注册失败: ${signUpError.message}`);
+                }
+
+                return { user: signUpData.user, session: signUpData.session, isNew: true };
+            }
+
+            throw new Error(signInError.message);
         }
 
-        // Supabase 数据操作函数
-        async function saveUserData(pin) {
+        // 保存用户数据（使用 RLS 保护，只能访问自己的数据）
+        async function saveUserData(userId, pin) {
             if (!supabase) {
                 throw new Error('Supabase 未配置');
             }
@@ -1005,18 +1042,18 @@
 
             // 检查数据大小
             const contentSize = encrypted.length;
-            if (contentSize > 10000000) { // 10MB
+            if (contentSize > 10000000) {
                 throw new Error('数据太大，无法同步');
             }
 
             const { error } = await supabase
-                .from('user_data')
+                .from('user_learning_data')
                 .upsert({
-                    pin: pin,
+                    user_id: userId,  // Supabase Auth 的 user_id
                     encrypted_data: encrypted,
                     updated_at: new Date().toISOString()
                 }, {
-                    onConflict: 'pin'
+                    onConflict: 'user_id'
                 });
 
             if (error) {
@@ -1024,21 +1061,21 @@
             }
         }
 
-        async function loadUserData(pin) {
+        // 加载用户数据
+        async function loadUserData(userId) {
             if (!supabase) {
                 throw new Error('Supabase 未配置');
             }
 
             const { data, error } = await supabase
-                .from('user_data')
+                .from('user_learning_data')
                 .select('encrypted_data')
-                .eq('pin', pin)
+                .eq('user_id', userId)
                 .single();
 
             if (error) {
                 if (error.code === 'PGRST116') {
-                    // 没有找到数据
-                    return null;
+                    return null; // 没有数据
                 }
                 throw new Error(`加载失败: ${error.message}`);
             }
@@ -1072,32 +1109,31 @@
             messageDiv.innerHTML = '<div class="success-message">正在处理...</div>';
 
             try {
-                // 从 Supabase 加载数据
-                const encryptedData = await loadUserData(pin);
+                // 使用 Supabase Auth 认证
+                const authResult = await authenticateWithPin(pin);
+                const userId = authResult.user.id;
 
-                if (encryptedData) {
-                    // 现有用户 - 解密数据
-                    const decryptedData = decryptData(encryptedData, pin);
+                if (!authResult.isNew) {
+                    // 现有用户 - 从 Supabase 加载数据
+                    const encryptedData = await loadUserData(userId);
 
-                    if (!decryptedData) {
-                        messageDiv.innerHTML = '<div class="error-message">PIN码错误，无法解密数据</div>';
-                        return;
+                    if (encryptedData) {
+                        const decryptedData = decryptData(encryptedData, pin);
+                        if (decryptedData) {
+                            mistakes = decryptedData.mistakes || [];
+                            stats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
+                        }
                     }
 
-                    // 解密成功，加载数据
-                    mistakes = decryptedData.mistakes || [];
-                    stats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
-
-                    currentUser = { pin: pin };
+                    currentUser = authResult;
                     currentPin = pin;
-
                     saveLocalData();
                     messageDiv.innerHTML = '<div class="success-message">登录成功！数据已同步</div>';
                 } else {
-                    // 新用户 - 保存当前数据
-                    await saveUserData(pin);
+                    // 新用户 - 保存当前数据到 Supabase
+                    await saveUserData(userId, pin);
 
-                    currentUser = { pin: pin };
+                    currentUser = authResult;
                     currentPin = pin;
                     saveLocalData();
 
@@ -1120,8 +1156,12 @@
         }
 
         // 退出登录
-        function handleLogout() {
+        async function handleLogout() {
             if (confirm('确定要退出登录吗？本地数据将保留，但不会自动同步到云端。')) {
+                // 退出 Supabase Auth
+                if (supabase) {
+                    await supabase.auth.signOut();
+                }
                 currentUser = null;
                 currentPin = null;
                 updateLoginUI();
@@ -1164,7 +1204,7 @@
             updateSyncStatus('syncing', '正在同步...');
 
             try {
-                await saveUserData(currentPin);
+                await saveUserData(currentUser.user.id, currentPin);
                 updateSyncStatus('synced', '同步成功: ' + new Date().toLocaleTimeString());
             } catch (error) {
                 console.error('Sync error:', error);
@@ -1180,7 +1220,7 @@
                 // 延迟同步，避免频繁请求
                 if (window.syncTimeout) clearTimeout(window.syncTimeout);
                 window.syncTimeout = setTimeout(() => {
-                    saveUserData(currentPin)
+                    saveUserData(currentUser.user.id, currentPin)
                         .then(() => updateSyncStatus('synced', '已自动同步'))
                         .catch(err => console.log('Auto sync failed:', err));
                 }, 3000);
