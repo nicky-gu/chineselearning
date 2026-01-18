@@ -863,7 +863,7 @@
                 </div>
             </div>
             <div class="section-tabs">
-                <button class="tab-btn" data-tab="practice">✍️ 听写练习</button>
+                <button class="tab-btn" data-tab="practice">✍️ 看字选拼音</button>
                 <button class="tab-btn" data-tab="sound">👂 听音选字</button>
                 <button class="tab-btn" data-tab="mistakes">❌ 错题集</button>
                 <button class="tab-btn active" data-tab="stats">📊 统计</button>
@@ -873,7 +873,7 @@
         <!-- 练习本 -->
         <div class="card practice-section" id="practice-section">
             <div class="section-title">
-                <h2>📝 练习本</h2>
+                <h2>✍️ 看字选拼音</h2>
             </div>
             <div id="practice-content">
                 <div class="empty-state">
@@ -965,7 +965,7 @@
     <script>
         // 数据存储
         let currentChars = [];
-        // 分为两类错题：听写练习错误 和 听音选字错误
+        // 分为两类错题：看字选拼音错误 和 听音选字错误
         let dictationMistakes = JSON.parse(localStorage.getItem('hanzi_dictation_mistakes') || '[]');
         let soundMistakes = JSON.parse(localStorage.getItem('hanzi_sound_mistakes') || '[]');
         // 向后兼容：如果有旧的 mistakes 数据，合并到两类中
@@ -977,7 +977,7 @@
             if (oldMistakes.length > 0) {
                 oldMistakes.forEach(m => {
                     const text = typeof m === 'object' ? m.text : m;
-                    // 默认将旧数据都加入听写错题
+                    // 默认将旧数据都加入看字选拼音错题
                     const existing = dictationMistakes.find(dm => typeof dm === 'object' ? dm.text === text : dm === text);
                     if (existing) {
                         if (typeof existing === 'object') {
@@ -1706,7 +1706,7 @@
         function updatePracticeSection() {
             const container = document.getElementById('practice-content');
 
-            // 优先使用听写练习错题集，其次使用当前输入的字词
+            // 优先使用看字选拼音错题集，其次使用当前输入的字词
             const practiceWords = dictationMistakes.length > 0
                 ? dictationMistakes.map(m => typeof m === 'object' ? m.text : m)
                 : currentChars;
@@ -1715,7 +1715,7 @@
                 container.innerHTML = `
                     <div class="empty-state">
                         <div class="emoji">📝</div>
-                        <p>请先输入字词，或积累一些听写错题后开始看字选拼音练习</p>
+                        <p>请先输入字词，或积累一些看字选拼音错题后开始练习</p>
                     </div>
                 `;
                 return;
@@ -1733,10 +1733,10 @@
             window.pinyinQuizIndex = 0;
             window.pinyinQuizScore = 0;
 
-            // 如果有听写错题集，提示用户
+            // 如果有看字选拼音错题集，提示用户
             const isUsingMistakes = dictationMistakes.length > 0;
             const hintMessage = isUsingMistakes
-                ? `<p style="text-align: center; color: #667eea; font-weight: bold; margin-bottom: 15px;">🎯 正在练习听写错题集中的 ${words.length} 个字</p>`
+                ? `<p style="text-align: center; color: #667eea; font-weight: bold; margin-bottom: 15px;">🎯 正在练习看字选拼音错题集中的 ${words.length} 个字</p>`
                 : `<p style="text-align: center; color: #666; margin-bottom: 15px;">📝 正在练习 ${words.length} 个字词</p>`;
 
             container.innerHTML = `
@@ -1951,7 +1951,7 @@
                 stats.totalPractice++;
                 stats.correctCount++;
 
-                // 如果这个字在听写错题集中，答对有概率移除
+                // 如果这个字在看字选拼音错题集中，答对有概率移除
                 if (dictationMistakes.find(m => (typeof m === 'object' ? m.text : m) === currentWord)) {
                     if (Math.random() > 0.5) {
                         removeFromMistakes(currentWord, 'dictation');
@@ -2019,7 +2019,7 @@
             `;
         }
 
-        // 听写练习界面
+        // 看字选拼音界面（听写模式的内部函数）
         function showDictationUI(container, words) {
             // 打乱顺序
             const shuffledWords = [...words].sort(() => Math.random() - 0.5);
@@ -2027,10 +2027,10 @@
             window.dictationIndex = 0;
             window.dictationScore = 0;
 
-            // 如果有听写错题集，提示用户
+            // 如果有看字选拼音错题集，提示用户
             const isUsingMistakes = dictationMistakes.length > 0;
             const hintMessage = isUsingMistakes
-                ? `<p style="text-align: center; color: #667eea; font-weight: bold; margin-bottom: 15px;">🎯 正在练习听写错题集中的 ${words.length} 个字</p>`
+                ? `<p style="text-align: center; color: #667eea; font-weight: bold; margin-bottom: 15px;">🎯 正在练习看字选拼音错题集中的 ${words.length} 个字</p>`
                 : `<p style="text-align: center; color: #666; margin-bottom: 15px;">📝 正在练习 ${words.length} 个字词</p>`;
 
             container.innerHTML = `
@@ -2083,7 +2083,7 @@
             }
         }
 
-        // 检查听写答案
+        // 检查看字选拼音答案
         function checkDictationAnswer() {
             const input = document.getElementById('dictationInput');
             const resultDiv = document.getElementById('dictationResult');
@@ -2106,9 +2106,9 @@
                 stats.totalPractice++;
                 stats.correctCount++;
 
-                // 如果这个字在听写错题集中，答对一次
+                // 如果这个字在看字选拼音错题集中，答对一次
                 if (dictationMistakes.find(m => (typeof m === 'object' ? m.text : m) === correctAnswer)) {
-                    // 答对3次后从听写错题集移除（简化处理：每次答对有50%概率移除）
+                    // 答对3次后从看字选拼音错题集移除（简化处理：每次答对有50%概率移除）
                     if (Math.random() > 0.5) {
                         removeFromMistakes(correctAnswer, 'dictation');
                     }
@@ -2135,7 +2135,7 @@
         // 跳过当前字
         function skipDictationWord() {
             const correctAnswer = window.dictationQueue[window.dictationIndex];
-            addToMistakes(correctAnswer, 'dictation'); // 跳过也记为听写错误
+            addToMistakes(correctAnswer, 'dictation'); // 跳过也记为看字选拼音错误
 
             const resultDiv = document.getElementById('dictationResult');
             resultDiv.innerHTML = `<span style="color: #999;">已跳过，正确答案是：${correctAnswer}</span>`;
@@ -2170,7 +2170,7 @@
             setTimeout(() => playCurrentWord(), 500);
         }
 
-        // 显示听写结果
+        // 显示看字选拼音结果
         function showDictationResult() {
             const container = document.getElementById('practice-content');
             const total = window.dictationQueue.length;
@@ -2180,7 +2180,7 @@
 
             container.innerHTML = `
                 <div class="result-box" style="text-align: center; padding: 40px;">
-                    <h2 style="color: #667eea; margin-bottom: 30px;">🎉 听写练习完成！</h2>
+                    <h2 style="color: #667eea; margin-bottom: 30px;">🎉 看字选拼音练习完成！</h2>
 
                     <div class="score" style="font-size: 4em; color: ${rate >= 80 ? '#11998e' : rate >= 60 ? '#f39c12' : '#eb3349'};">
                         ${rate}%
@@ -2496,12 +2496,12 @@
 
             let html = '';
 
-            // 显示听写练习错题
+            // 显示看字选拼音错题
             if (dictationMistakes.length > 0) {
                 html += `
                     <div style="margin-bottom: 25px;">
                         <h3 style="color: #667eea; font-size: 1.3em; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
-                            ✍️ 听写练习错题 (${dictationMistakes.length})
+                            ✍️ 看字选拼音错题 (${dictationMistakes.length})
                         </h3>
                 `;
 
