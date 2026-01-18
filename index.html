@@ -863,25 +863,10 @@
                 </div>
             </div>
             <div class="section-tabs">
-                <button class="tab-btn" data-tab="pinyin">🔊 拼音学习</button>
                 <button class="tab-btn" data-tab="practice">✍️ 听写练习</button>
                 <button class="tab-btn" data-tab="sound">👂 听音选字</button>
                 <button class="tab-btn" data-tab="mistakes">❌ 错题集</button>
                 <button class="tab-btn active" data-tab="stats">📊 统计</button>
-            </div>
-        </div>
-
-        <!-- 拼音学习 -->
-        <div class="card practice-section" id="pinyin-section">
-            <div class="section-title">
-                <h2>🔊 拼音学习</h2>
-            </div>
-            <p style="color: #666; margin-bottom: 15px;">点击卡片听发音，查看拼音</p>
-            <div id="pinyin-content">
-                <div class="empty-state">
-                    <div class="emoji">📝</div>
-                    <p>请先输入字或词组</p>
-                </div>
             </div>
         </div>
 
@@ -1619,7 +1604,6 @@
         }
 
         function updateAllSections() {
-            updatePinyinSection();
             updatePracticeSection();
             updateSoundSection();
         }
@@ -1716,35 +1700,6 @@
                 saveStats();
                 updateStatsSection();
             }
-        }
-
-        // 更新拼音学习区域
-        function updatePinyinSection() {
-            const container = document.getElementById('pinyin-content');
-            if (currentChars.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="emoji">📝</div>
-                        <p>请先输入字或词组</p>
-                    </div>
-                `;
-                return;
-            }
-
-            addToLearned(currentChars);
-
-            let html = '<div class="pinyin-grid">';
-            currentChars.forEach(text => {
-                const pinyin = getPinyin(text);
-                html += `
-                    <div class="pinyin-card" onclick="speakText('${text}')">
-                        <div class="text">${text}</div>
-                        <div class="pinyin-hint">${pinyin}</div>
-                    </div>
-                `;
-            });
-            html += '</div>';
-            container.innerHTML = html;
         }
 
         // 更新练习本 - 看字选拼音模式
