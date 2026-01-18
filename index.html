@@ -80,6 +80,7 @@
             border-radius: 15px;
             text-align: center;
             transition: all 0.3s ease;
+            box-sizing: border-box;
         }
 
         #charInput:focus {
@@ -817,7 +818,12 @@
 
         <div class="card input-section">
             <h2>✏️ 输入汉字</h2>
-            <input type="text" id="charInput" placeholder="输入字或词组，用空格或逗号分隔，比如：山水 天空 鸟儿" maxlength="100">
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="text" id="charInput" placeholder="输入字或词组，用空格或逗号分隔，比如：山水 天空 鸟儿" maxlength="100" style="flex: 1;">
+                <button onclick="clearInput()" class="action-btn" style="background: #f0f0f0; color: #666; padding: 12px 20px; white-space: nowrap;">
+                    🗑️ 清空
+                </button>
+            </div>
             <div class="section-tabs">
                 <button class="tab-btn active" data-tab="pinyin">🔊 拼音学习</button>
                 <button class="tab-btn" data-tab="practice">📝 练习本</button>
@@ -1300,14 +1306,29 @@
 
         // 监听输入
         document.getElementById('charInput').addEventListener('input', (e) => {
-            const input = e.target.value.replace(/[^\u4e00-\u9fa5\s,，、\n]/g, '');
-            // 只有值真的被改变时才更新（避免光标重置）
-            if (input !== e.target.value) {
-                e.target.value = input;
+            const selectionStart = e.target.selectionStart;
+            const selectionEnd = e.target.selectionEnd;
+            const originalValue = e.target.value;
+            const filteredValue = originalValue.replace(/[^\u4e00-\u9fa5\s,，、\n]/g, '');
+
+            if (filteredValue !== originalValue) {
+                e.target.value = filteredValue;
+                const newCursorPos = Math.max(0, selectionStart - (originalValue.length - filteredValue.length));
+                e.target.setSelectionRange(newCursorPos, newCursorPos);
             }
-            currentChars = [...new Set(input.split(/[\s,，、\n]+/).filter(s => s.trim()))];
+
+            currentChars = [...new Set(filteredValue.split(/[\s,，、\n]+/).filter(s => s.trim()))];
             updateAllSections();
         });
+
+        // 清空输入框
+        function clearInput() {
+            const input = document.getElementById('charInput');
+            input.value = '';
+            currentChars = [];
+            updateAllSections();
+            input.focus();
+        }
 
         function updateAllSections() {
             updatePinyinSection();
