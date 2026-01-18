@@ -851,16 +851,16 @@
                 </div>
             </div>
             <div class="section-tabs">
-                <button class="tab-btn active" data-tab="pinyin">🔊 拼音学习</button>
-                <button class="tab-btn" data-tab="practice">📝 练习本</button>
+                <button class="tab-btn" data-tab="pinyin">🔊 拼音学习</button>
+                <button class="tab-btn" data-tab="practice">✍️ 听写练习</button>
                 <button class="tab-btn" data-tab="sound">👂 听音选字</button>
                 <button class="tab-btn" data-tab="mistakes">❌ 错字集</button>
-                <button class="tab-btn" data-tab="stats">📊 统计</button>
+                <button class="tab-btn active" data-tab="stats">📊 统计</button>
             </div>
         </div>
 
         <!-- 拼音学习 -->
-        <div class="card practice-section active" id="pinyin-section">
+        <div class="card practice-section" id="pinyin-section">
             <div class="section-title">
                 <h2>🔊 拼音学习</h2>
             </div>
@@ -914,7 +914,7 @@
         </div>
 
         <!-- 统计 -->
-        <div class="card practice-section" id="stats-section">
+        <div class="card practice-section active" id="stats-section">
             <div class="section-title">
                 <h2>📊 学习统计</h2>
                 <button class="action-btn btn-danger" onclick="clearStats()">清空数据</button>
@@ -1650,48 +1650,210 @@
             container.innerHTML = html;
         }
 
-        // 更新练习本
+        // 更新练习本 - 听写练习模式
         function updatePracticeSection() {
             const container = document.getElementById('practice-content');
-            if (currentChars.length === 0) {
+
+            // 优先使用错字集，其次使用当前输入的字词
+            const practiceWords = mistakes.length > 0
+                ? mistakes.map(m => typeof m === 'object' ? m.text : m)
+                : currentChars;
+
+            if (practiceWords.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
-                        <div class="emoji">📖</div>
-                        <p>请先输入字或词组</p>
+                        <div class="emoji">✍️</div>
+                        <p>请先输入字词，或积累一些错字后开始听写练习</p>
                     </div>
                 `;
                 return;
             }
 
-            addToLearned(currentChars);
+            // 显示听写练习界面
+            showDictationUI(container, practiceWords);
+        }
 
-            let html = `
-                <div class="practice-instruction">
-                    <strong>练习说明：</strong>听发音，在输入框中写出对应的拼音（可不用声调）
-                </div>
-                <div class="practice-book">
-            `;
+        // 听写练习界面
+        function showDictationUI(container, words) {
+            // 打乱顺序
+            const shuffledWords = [...words].sort(() => Math.random() - 0.5);
+            window.dictationQueue = shuffledWords;
+            window.dictationIndex = 0;
+            window.dictationScore = 0;
 
-            currentChars.forEach((text, idx) => {
-                const pinyin = getPinyin(text);
-                const safeText = escapeHtml(text);
-                const safePinyin = escapeHtml(pinyin);
-                const jsText = escapeJs(text);
-                const jsPinyin = escapeJs(pinyin);
-                html += `
-                    <div class="practice-char" data-text="${jsText}" data-pinyin="${jsPinyin}">
-                        <div class="big-char">${safeText}</div>
-                        <div class="pinyin-display">${safePinyin}</div>
-                        <div class="practice-input">
-                            <input type="text" class="pinyin-input" placeholder="输入拼音" oninput="checkPinyin(this, '${jsPinyin}', '${jsText}')">
-                            <button class="play-btn" onclick="speakText('${jsText}')">🔊</button>
+            // 如果有错字集，提示用户
+            const isUsingMistakes = mistakes.length > 0;
+            const hintMessage = isUsingMistakes
+                ? `<p style="text-align: center; color: #667eea; font-weight: bold; margin-bottom: 15px;">🎯 正在练习错字集中的 ${words.length} 个字</p>`
+                : `<p style="text-align: center; color: #666; margin-bottom: 15px;">📝 正在练习 ${words.length} 个字词</p>`;
+
+            container.innerHTML = `
+                <div class="dictation-container">
+                    ${hintMessage}
+
+                    <div class="dictation-progress" style="text-align: center; margin-bottom: 20px; padding: 15px; background: #f8f9ff; border-radius: 10px;">
+                        <div style="font-size: 1.2em; font-weight: bold; color: #667eea;">
+                            进度: <span id="dictationProgress">1 / ${words.length}</span>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <span style="color: #11998e;">✓ 正确: <span id="dictationCorrect">0</span></span>
+                            <span style="margin-left: 20px; color: #eb3349;">✗ 错误: <span id="dictationWrong">0</span></span>
                         </div>
                     </div>
-                `;
-            });
 
-            html += '</div>';
-            container.innerHTML = html;
+                    <div id="dictationGameArea" style="text-align: center; padding: 30px; background: linear-gradient(135deg, #f8f9ff 0%, #e8f0ff 100%); border-radius: 20px;">
+                        <button id="dictationSoundBtn" onclick="playCurrentWord()" class="sound-btn" style="width: 120px; height: 120px; font-size: 3em; margin-bottom: 20px;">
+                            🔊
+                        </button>
+                        <p style="color: #666; margin-bottom: 20px;">点击上方按钮听发音，然后在下方输入对应的汉字</p>
+
+                        <input type="text" id="dictationInput" placeholder="输入听到的汉字"
+                            style="font-size: 2em; padding: 15px; width: 200px; text-align: center; border: 3px solid #ddd; border-radius: 10px;"
+                            onkeydown="if(event.key === 'Enter') checkDictationAnswer()">
+
+                        <div style="margin-top: 20px;">
+                            <button class="btn btn-primary" onclick="checkDictationAnswer()" style="padding: 12px 30px; font-size: 1.1em;">
+                                ✓ 提交答案
+                            </button>
+                            <button class="btn btn-secondary" onclick="skipDictationWord()" style="padding: 12px 30px; font-size: 1.1em; background: #f0f0f0; color: #666; margin-left: 10px;">
+                                ⏭ 跳过
+                            </button>
+                        </div>
+
+                        <div id="dictationResult" style="margin-top: 20px; font-size: 1.2em; font-weight: bold; min-height: 30px;"></div>
+                    </div>
+                </div>
+            `;
+
+            // 自动播放第一个字
+            setTimeout(() => playCurrentWord(), 300);
+        }
+
+        // 播放当前字
+        function playCurrentWord() {
+            if (window.dictationQueue && window.dictationIndex < window.dictationQueue.length) {
+                const word = window.dictationQueue[window.dictationIndex];
+                speakText(word);
+            }
+        }
+
+        // 检查听写答案
+        function checkDictationAnswer() {
+            const input = document.getElementById('dictationInput');
+            const resultDiv = document.getElementById('dictationResult');
+            const userAnswer = input.value.trim();
+            const correctAnswer = window.dictationQueue[window.dictationIndex];
+
+            if (!userAnswer) {
+                resultDiv.innerHTML = '<span style="color: #999;">请输入答案</span>';
+                return;
+            }
+
+            if (userAnswer === correctAnswer) {
+                // 答对了
+                resultDiv.innerHTML = '<span style="color: #11998e;">✓ 正确！</span>';
+                input.style.borderColor = '#11998e';
+                input.style.background = '#f0fff9';
+                window.dictationScore++;
+                document.getElementById('dictationCorrect').textContent = window.dictationScore;
+
+                stats.totalPractice++;
+                stats.correctCount++;
+
+                // 如果这个字在错字集中，答对一次
+                if (mistakes.find(m => (typeof m === 'object' ? m.text : m) === correctAnswer)) {
+                    // 答对3次后从错字集移除（简化处理：每次答对有50%概率移除）
+                    if (Math.random() > 0.5) {
+                        removeFromMistakes(correctAnswer);
+                    }
+                }
+            } else {
+                // 答错了
+                resultDiv.innerHTML = `<span style="color: #eb3349;">✗ 错误！正确答案是：${correctAnswer}</span>`;
+                input.style.borderColor = '#eb3349';
+                input.style.background = '#fff0f0';
+
+                stats.totalPractice++;
+                addToMistakes(correctAnswer);
+
+                const wrongCount = window.dictationIndex - window.dictationScore + 1;
+                document.getElementById('dictationWrong').textContent = wrongCount;
+            }
+
+            saveStats();
+
+            // 1.5秒后下一题
+            setTimeout(() => nextDictationWord(), 1500);
+        }
+
+        // 跳过当前字
+        function skipDictationWord() {
+            const correctAnswer = window.dictationQueue[window.dictationIndex];
+            addToMistakes(correctAnswer); // 跳过也记为错误
+
+            const resultDiv = document.getElementById('dictationResult');
+            resultDiv.innerHTML = `<span style="color: #999;">已跳过，正确答案是：${correctAnswer}</span>`;
+
+            const wrongCount = window.dictationIndex - window.dictationScore + 1;
+            document.getElementById('dictationWrong').textContent = wrongCount;
+
+            setTimeout(() => nextDictationWord(), 1000);
+        }
+
+        // 下一个字
+        function nextDictationWord() {
+            window.dictationIndex++;
+
+            // 检查是否完成
+            if (window.dictationIndex >= window.dictationQueue.length) {
+                showDictationResult();
+                return;
+            }
+
+            // 更新进度
+            document.getElementById('dictationProgress').textContent = `${window.dictationIndex + 1} / ${window.dictationQueue.length}`;
+
+            // 清空输入框
+            const input = document.getElementById('dictationInput');
+            input.value = '';
+            input.style.borderColor = '#ddd';
+            input.style.background = 'white';
+            document.getElementById('dictationResult').textContent = '';
+
+            // 播放下一个字
+            setTimeout(() => playCurrentWord(), 500);
+        }
+
+        // 显示听写结果
+        function showDictationResult() {
+            const container = document.getElementById('practice-content');
+            const total = window.dictationQueue.length;
+            const correct = window.dictationScore;
+            const wrong = total - correct;
+            const rate = Math.round((correct / total) * 100);
+
+            container.innerHTML = `
+                <div class="result-box" style="text-align: center; padding: 40px;">
+                    <h2 style="color: #667eea; margin-bottom: 30px;">🎉 听写练习完成！</h2>
+
+                    <div class="score" style="font-size: 4em; color: ${rate >= 80 ? '#11998e' : rate >= 60 ? '#f39c12' : '#eb3349'};">
+                        ${rate}%
+                    </div>
+
+                    <div class="message" style="font-size: 1.3em; color: #666; margin: 20px 0;">
+                        答对 ${correct} 题，答错 ${wrong} 题
+                    </div>
+
+                    <div style="display: flex; gap: 10px; justify-content: center; margin-top: 30px;">
+                        <button class="btn btn-primary" onclick="updatePracticeSection()" style="padding: 15px 35px; font-size: 1.2em;">
+                            🔄 再来一局
+                        </button>
+                        <button class="btn btn-secondary" onclick="showDictationUI(document.getElementById('practice-content'), window.dictationQueue)" style="padding: 15px 35px; font-size: 1.2em; background: #f0f0f0; color: #666;">
+                            ↺ 重练本组
+                        </button>
+                    </div>
+                </div>
+            `;
         }
 
         // 检查拼音
