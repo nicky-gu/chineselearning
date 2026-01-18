@@ -1253,6 +1253,21 @@
             showLoginMessage('<div class="success-message">正在处理...</div>');
 
             try {
+                // 先检查当前是否有session，以及session是否匹配输入的PIN
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                const expectedEmail = `pin${pin}@${EMAIL_DOMAIN}`;
+
+                // 如果有session但邮箱不匹配，先登出
+                if (session && session.user.email !== expectedEmail) {
+                    console.log('Session email mismatch, signing out...');
+                    await supabaseClient.auth.signOut();
+                    // 清空本地状态
+                    currentUser = null;
+                    currentPin = null;
+                    localStorage.removeItem(STORAGE_KEYS.PIN);
+                    localStorage.removeItem(STORAGE_KEYS.LAST_LOGIN);
+                }
+
                 const authResult = await authenticateWithPin(pin);
                 const userId = authResult.user.id;
 
@@ -1266,7 +1281,8 @@
                 setTimeout(() => {
                     closeLoginModal();
                     updateStatsSection();
-                    updateMistakesSection();
+                    updateDictationMistakesSection();
+                    updateSoundMistakesSection();
                 }, 1000);
 
             } catch (error) {
