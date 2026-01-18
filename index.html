@@ -949,6 +949,10 @@
         let currentUser = null;  // { gistUrl: string, gistId: string, gistApiUrl: string }
         let currentPin = null;   // 存储在内存中，用于加密解密
 
+        // GitHub Token（用于创建和更新 Gist）
+        // 在 GitHub Actions 构建时会被替换为真实 token
+        const GITHUB_TOKEN = 'HANZI_GITHUB_TOKEN_PLACEHOLDER';
+
         // 加密/解密函数 (使用 AES)
         function encryptData(data, pin) {
             const jsonString = JSON.stringify(data);
@@ -998,7 +1002,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    // 匿名创建 Gist，不需要 token
+                    'Authorization': `Bearer ${GITHUB_TOKEN}`
                 },
                 body: JSON.stringify(gistData)
             });
@@ -1033,7 +1037,9 @@
             }
 
             // 获取现有 Gist 内容以保持文件名和结构
-            const getResponse = await fetch(gistApiUrl);
+            const getResponse = await fetch(gistApiUrl, {
+                headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}` }
+            });
             if (!getResponse.ok) {
                 throw new Error(`获取 Gist 失败 (${getResponse.status})`);
             }
@@ -1053,6 +1059,7 @@
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${GITHUB_TOKEN}`
                 },
                 body: JSON.stringify(gistData)
             });
