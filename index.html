@@ -1266,6 +1266,11 @@
                     currentPin = null;
                     localStorage.removeItem(STORAGE_KEYS.PIN);
                     localStorage.removeItem(STORAGE_KEYS.LAST_LOGIN);
+                    // 清空学习数据
+                    dictationMistakes = [];
+                    soundMistakes = [];
+                    stats = { totalLearned: 0, totalPractice: 0, correctCount: 0 };
+                    currentChars = [];
                 }
 
                 const authResult = await authenticateWithPin(pin);
