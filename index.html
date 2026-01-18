@@ -862,16 +862,83 @@
                     </button>
                 </div>
             </div>
-            <div class="section-tabs">
-                <button class="tab-btn" data-tab="practice">✍️ 看字选拼音</button>
-                <button class="tab-btn" data-tab="sound">👂 听音选字</button>
-                <button class="tab-btn" data-tab="mistakes">❌ 错题集</button>
-                <button class="tab-btn active" data-tab="stats">📊 统计</button>
+        </div>
+
+        <!-- 统计 (默认显示，不在标签页中) -->
+        <div class="card" id="stats-section">
+            <div class="section-title">
+                <h2>📊 学习统计</h2>
+                <button class="action-btn btn-danger" onclick="clearStats()">清空数据</button>
+            </div>
+            <p style="color: #666; margin-bottom: 15px;">💾 数据自动保存在浏览器中，下次打开还在</p>
+            <div id="stats-content">
+                <!-- 看字选拼音统计 -->
+                <div style="margin-bottom: 25px;">
+                    <h3 style="color: #667eea; font-size: 1.2em; margin-bottom: 10px;">✍️ 看字选拼音</h3>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="number" id="dictationMistakeCount">0</div>
+                            <div class="label">错题数量</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" id="dictationTotalErrors">0</div>
+                            <div class="label">累计错误次数</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 听音选字统计 -->
+                <div style="margin-bottom: 25px;">
+                    <h3 style="color: #764ba2; font-size: 1.2em; margin-bottom: 10px;">👂 听音选字</h3>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="number" id="soundMistakeCount">0</div>
+                            <div class="label">错题数量</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" id="soundTotalErrors">0</div>
+                            <div class="label">累计错误次数</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 总体统计 -->
+                <div style="margin-bottom: 25px;">
+                    <h3 style="color: #2d3436; font-size: 1.2em; margin-bottom: 10px;">📈 总体统计</h3>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="number" id="totalLearned">0</div>
+                            <div class="label">已学字词</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" id="totalPractice">0</div>
+                            <div class="label">练习次数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" id="correctRate">0%</div>
+                            <div class="label">正确率</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="number" id="totalMistakeCount">0</div>
+                            <div class="label">总错题数量</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="learnedWordsList" style="margin-top: 20px;"></div>
             </div>
         </div>
 
+        <!-- 练习标签页 -->
+        <div class="section-tabs">
+            <button class="tab-btn active" data-tab="practice">✍️ 看字选拼音练习</button>
+            <button class="tab-btn" data-tab="sound">👂 听音选字练习</button>
+            <button class="tab-btn" data-tab="mistakes-pinyin">❌ 错题集-看字选拼音</button>
+            <button class="tab-btn" data-tab="mistakes-sound">❌ 错题集-听音选字</button>
+        </div>
+
         <!-- 练习本 -->
-        <div class="card practice-section" id="practice-section">
+        <div class="card practice-section active" id="practice-section">
             <div class="section-title">
                 <h2>✍️ 看字选拼音</h2>
             </div>
@@ -896,47 +963,31 @@
             </div>
         </div>
 
-        <!-- 错题集 -->
-        <div class="card practice-section" id="mistakes-section">
+        <!-- 错题集-看字选拼音 -->
+        <div class="card practice-section" id="mistakes-pinyin-section">
             <div class="section-title">
-                <h2>❌ 错题集</h2>
-                <button class="action-btn btn-danger" onclick="clearMistakes()">清空错题集</button>
+                <h2>❌ 错题集-看字选拼音</h2>
+                <button class="action-btn btn-danger" onclick="clearDictationMistakes()">清空此错题集</button>
             </div>
-            <div id="mistakes-content">
+            <div id="mistakes-pinyin-content">
                 <div class="empty-state">
                     <div class="emoji">✨</div>
-                    <p>暂时没有错题，继续加油！</p>
+                    <p>暂时没有看字选拼音错题，继续加油！</p>
                 </div>
             </div>
         </div>
 
-        <!-- 统计 -->
-        <div class="card practice-section active" id="stats-section">
+        <!-- 错题集-听音选字 -->
+        <div class="card practice-section" id="mistakes-sound-section">
             <div class="section-title">
-                <h2>📊 学习统计</h2>
-                <button class="action-btn btn-danger" onclick="clearStats()">清空数据</button>
+                <h2>❌ 错题集-听音选字</h2>
+                <button class="action-btn btn-danger" onclick="clearSoundMistakes()">清空此错题集</button>
             </div>
-            <p style="color: #666; margin-bottom: 15px;">💾 数据自动保存在浏览器中，下次打开还在</p>
-            <div id="stats-content">
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="number" id="totalLearned">0</div>
-                        <div class="label">已学字词</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="number" id="totalPractice">0</div>
-                        <div class="label">练习次数</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="number" id="correctRate">0%</div>
-                        <div class="label">正确率</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="number" id="mistakeCount">0</div>
-                        <div class="label">错字数量</div>
-                    </div>
+            <div id="mistakes-sound-content">
+                <div class="empty-state">
+                    <div class="emoji">✨</div>
+                    <p>暂时没有听音选字错题，继续加油！</p>
                 </div>
-                <div id="learnedWordsList" style="margin-top: 20px;"></div>
             </div>
         </div>
 
@@ -1477,11 +1528,22 @@
                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
                 document.querySelectorAll('.practice-section').forEach(s => s.classList.remove('active'));
                 btn.classList.add('active');
-                document.getElementById(btn.dataset.tab + '-section').classList.add('active');
 
-                // 切换到错字集或统计时刷新
-                if (btn.dataset.tab === 'mistakes') updateMistakesSection();
-                if (btn.dataset.tab === 'stats') updateStatsSection();
+                // 根据标签页ID显示对应的section
+                const tabId = btn.dataset.tab;
+                if (tabId === 'practice') {
+                    document.getElementById('practice-section').classList.add('active');
+                    updatePracticeSection();
+                } else if (tabId === 'sound') {
+                    document.getElementById('sound-section').classList.add('active');
+                    updateSoundSection();
+                } else if (tabId === 'mistakes-pinyin') {
+                    document.getElementById('mistakes-pinyin-section').classList.add('active');
+                    updateDictationMistakesSection();
+                } else if (tabId === 'mistakes-sound') {
+                    document.getElementById('mistakes-sound-section').classList.add('active');
+                    updateSoundMistakesSection();
+                }
             });
         });
 
@@ -2479,127 +2541,318 @@
             updateSoundSection();
         }
 
-        // 更新错题集
-        function updateMistakesSection() {
-            const container = document.getElementById('mistakes-content');
+        // 更新看字选拼音错题集
+        function updateDictationMistakesSection() {
+            const container = document.getElementById('mistakes-pinyin-content');
 
-            const totalMistakes = dictationMistakes.length + soundMistakes.length;
-            if (totalMistakes === 0) {
+            if (dictationMistakes.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
                         <div class="emoji">✨</div>
-                        <p>暂时没有错题，继续加油！</p>
+                        <p>暂时没有看字选拼音错题，继续加油！</p>
                     </div>
                 `;
                 return;
             }
 
+            // 按错误次数排序
+            const sortedMistakes = [...dictationMistakes].sort((a, b) => {
+                const countA = typeof a === 'object' ? a.count : 1;
+                const countB = typeof b === 'object' ? b.count : 1;
+                return countB - countA;
+            });
+
             let html = '';
 
-            // 显示看字选拼音错题
-            if (dictationMistakes.length > 0) {
+            // 添加字词选择区域
+            html += `
+                <div style="background: #f8f9ff; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="selectAllDictationMistakes" onchange="toggleAllDictationMistakes(this.checked)" style="width: 18px; height: 18px; cursor: pointer;">
+                            <span style="font-weight: bold; color: #667eea;">全选 (${dictationMistakes.length} 个)</span>
+                        </label>
+                        <span id="dictationSelectedCount" style="color: #666;">已选: 0</span>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-primary" onclick="practiceSelectedDictationMistakes()" style="flex: 1; padding: 10px 20px; font-size: 1em; font-weight: bold; cursor: pointer; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px;">
+                            🎮 练习选中的错题
+                        </button>
+                        <button class="btn" onclick="practiceAllDictationMistakes()" style="flex: 1; padding: 10px 20px; font-size: 1em; font-weight: bold; cursor: pointer; background: #f0f0f0; color: #666; border: none; border-radius: 10px;">
+                            🔄 练习全部错题
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mistake-list">
+            `;
+
+            sortedMistakes.forEach((item, idx) => {
+                const text = typeof item === 'object' ? item.text : item;
+                const count = typeof item === 'object' ? item.count : 1;
+                const lastWrong = typeof item === 'object' && item.lastWrong ? new Date(item.lastWrong).toLocaleString('zh-CN') : '';
+                const pinyin = getPinyin(text);
+
+                // 找到原始索引用于删除
+                const originalIdx = dictationMistakes.indexOf(item);
+
                 html += `
-                    <div style="margin-bottom: 25px;">
-                        <h3 style="color: #667eea; font-size: 1.3em; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
-                            ✍️ 看字选拼音错题 (${dictationMistakes.length})
-                        </h3>
-                `;
-
-                // 按错误次数排序
-                const sortedMistakes = [...dictationMistakes].sort((a, b) => {
-                    const countA = typeof a === 'object' ? a.count : 1;
-                    const countB = typeof b === 'object' ? b.count : 1;
-                    return countB - countA;
-                });
-
-                html += '<div class="mistake-list">';
-                sortedMistakes.forEach((item, idx) => {
-                    const text = typeof item === 'object' ? item.text : item;
-                    const count = typeof item === 'object' ? item.count : 1;
-                    const lastWrong = typeof item === 'object' && item.lastWrong ? new Date(item.lastWrong).toLocaleString('zh-CN') : '';
-                    const pinyin = getPinyin(text);
-
-                    // 找到原始索引用于删除
-                    const originalIdx = dictationMistakes.indexOf(item);
-
-                    html += `
-                        <div class="mistake-item">
+                    <div class="mistake-item">
+                        <label style="display: flex; align-items: center; gap: 10px; flex: 1; cursor: pointer;">
+                            <input type="checkbox" class="dictation-mistake-checkbox" value="${escapeHtml(text)}" onchange="updateDictationSelectedCount()" style="width: 18px; height: 18px; cursor: pointer;">
                             <div style="flex: 1;">
                                 <span class="char">${escapeHtml(text)}</span>
                                 <span class="info">${escapeHtml(pinyin)}</span>
                                 <span class="info" style="margin-left: 10px; color: #eb3349;">❌ 错误 ${count} 次</span>
                                 ${lastWrong ? `<span class="info" style="margin-left: 10px; color: #999; font-size: 0.85em;">${lastWrong}</span>` : ''}
                             </div>
-                            <button class="remove-btn" onclick="removeFromMistakes(${originalIdx}, 'dictation')">移除</button>
-                        </div>
-                    `;
-                });
-                html += '</div>';
-
-                const totalErrors = dictationMistakes.reduce((sum, m) => sum + (typeof m === 'object' ? m.count : 1), 0);
-                html += `<p style="text-align: center; color: #666; margin-top: 10px;">累计错误 ${totalErrors} 次</p>`;
-
-                html += `</div>`;
-            }
-
-            // 显示听音选字错题
-            if (soundMistakes.length > 0) {
-                html += `
-                    <div style="margin-bottom: 25px;">
-                        <h3 style="color: #764ba2; font-size: 1.3em; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
-                            👂 听音选字错题 (${soundMistakes.length})
-                        </h3>
+                        </label>
+                        <button class="remove-btn" onclick="removeFromMistakes('${text}', 'dictation')">移除</button>
+                    </div>
                 `;
+            });
 
-                // 按错误次数排序
-                const sortedMistakes = [...soundMistakes].sort((a, b) => {
-                    const countA = typeof a === 'object' ? a.count : 1;
-                    const countB = typeof b === 'object' ? b.count : 1;
-                    return countB - countA;
-                });
+            html += '</div>';
 
-                html += '<div class="mistake-list">';
-                sortedMistakes.forEach((item, idx) => {
-                    const text = typeof item === 'object' ? item.text : item;
-                    const count = typeof item === 'object' ? item.count : 1;
-                    const lastWrong = typeof item === 'object' && item.lastWrong ? new Date(item.lastWrong).toLocaleString('zh-CN') : '';
-                    const pinyin = getPinyin(text);
-
-                    // 找到原始索引用于删除
-                    const originalIdx = soundMistakes.indexOf(item);
-
-                    html += `
-                        <div class="mistake-item">
-                            <div style="flex: 1;">
-                                <span class="char">${escapeHtml(text)}</span>
-                                <span class="info">${escapeHtml(pinyin)}</span>
-                                <span class="info" style="margin-left: 10px; color: #eb3349;">❌ 错误 ${count} 次</span>
-                                ${lastWrong ? `<span class="info" style="margin-left: 10px; color: #999; font-size: 0.85em;">${lastWrong}</span>` : ''}
-                            </div>
-                            <button class="remove-btn" onclick="removeFromMistakes(${originalIdx}, 'sound')">移除</button>
-                        </div>
-                    `;
-                });
-                html += '</div>';
-
-                const totalErrors = soundMistakes.reduce((sum, m) => sum + (typeof m === 'object' ? m.count : 1), 0);
-                html += `<p style="text-align: center; color: #666; margin-top: 10px;">累计错误 ${totalErrors} 次</p>`;
-
-                html += `<button class="btn btn-primary" onclick="practiceMistakes()" style="margin-top: 15px; padding: 12px 30px; border: none; border-radius: 25px; font-size: 1em; font-weight: bold; cursor: pointer; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">🎮 练习听音错题</button>`;
-
-                html += `</div>`;
-            }
+            const totalErrors = dictationMistakes.reduce((sum, m) => sum + (typeof m === 'object' ? m.count : 1), 0);
+            html += `<p style="text-align: center; color: #666; margin-top: 15px;">累计错误 ${totalErrors} 次</p>`;
 
             container.innerHTML = html;
         }
 
+        // 更新听音选字错题集
+        function updateSoundMistakesSection() {
+            const container = document.getElementById('mistakes-sound-content');
+
+            if (soundMistakes.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="emoji">✨</div>
+                        <p>暂时没有听音选字错题，继续加油！</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // 按错误次数排序
+            const sortedMistakes = [...soundMistakes].sort((a, b) => {
+                const countA = typeof a === 'object' ? a.count : 1;
+                const countB = typeof b === 'object' ? b.count : 1;
+                return countB - countA;
+            });
+
+            let html = '';
+
+            // 添加字词选择区域
+            html += `
+                <div style="background: #f8f9ff; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="selectAllSoundMistakes" onchange="toggleAllSoundMistakes(this.checked)" style="width: 18px; height: 18px; cursor: pointer;">
+                            <span style="font-weight: bold; color: #764ba2;">全选 (${soundMistakes.length} 个)</span>
+                        </label>
+                        <span id="soundSelectedCount" style="color: #666;">已选: 0</span>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-primary" onclick="practiceSelectedSoundMistakes()" style="flex: 1; padding: 10px 20px; font-size: 1em; font-weight: bold; cursor: pointer; background: linear-gradient(135deg, #764ba2 0%, #667eea 100%); color: white; border: none; border-radius: 10px;">
+                            🎮 练习选中的错题
+                        </button>
+                        <button class="btn" onclick="practiceAllSoundMistakes()" style="flex: 1; padding: 10px 20px; font-size: 1em; font-weight: bold; cursor: pointer; background: #f0f0f0; color: #666; border: none; border-radius: 10px;">
+                            🔄 练习全部错题
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mistake-list">
+            `;
+
+            sortedMistakes.forEach((item, idx) => {
+                const text = typeof item === 'object' ? item.text : item;
+                const count = typeof item === 'object' ? item.count : 1;
+                const lastWrong = typeof item === 'object' && item.lastWrong ? new Date(item.lastWrong).toLocaleString('zh-CN') : '';
+                const pinyin = getPinyin(text);
+
+                // 找到原始索引用于删除
+                const originalIdx = soundMistakes.indexOf(item);
+
+                html += `
+                    <div class="mistake-item">
+                        <label style="display: flex; align-items: center; gap: 10px; flex: 1; cursor: pointer;">
+                            <input type="checkbox" class="sound-mistake-checkbox" value="${escapeHtml(text)}" onchange="updateSoundSelectedCount()" style="width: 18px; height: 18px; cursor: pointer;">
+                            <div style="flex: 1;">
+                                <span class="char">${escapeHtml(text)}</span>
+                                <span class="info">${escapeHtml(pinyin)}</span>
+                                <span class="info" style="margin-left: 10px; color: #eb3349;">❌ 错误 ${count} 次</span>
+                                ${lastWrong ? `<span class="info" style="margin-left: 10px; color: #999; font-size: 0.85em;">${lastWrong}</span>` : ''}
+                            </div>
+                        </label>
+                        <button class="remove-btn" onclick="removeFromMistakes('${text}', 'sound')">移除</button>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+
+            const totalErrors = soundMistakes.reduce((sum, m) => sum + (typeof m === 'object' ? m.count : 1), 0);
+            html += `<p style="text-align: center; color: #666; margin-top: 15px;">累计错误 ${totalErrors} 次</p>`;
+
+            container.innerHTML = html;
+        }
+
+        // 清空看字选拼音错题
+        function clearDictationMistakes() {
+            if (confirm('确定要清空所有看字选拼音错题吗？')) {
+                dictationMistakes = [];
+                saveDictationMistakes();
+                updateDictationMistakesSection();
+                updateStatsSection();
+            }
+        }
+
+        // 清空听音选字错题
+        function clearSoundMistakes() {
+            if (confirm('确定要清空所有听音选字错题吗？')) {
+                soundMistakes = [];
+                saveSoundMistakes();
+                updateSoundMistakesSection();
+                updateStatsSection();
+            }
+        }
+
+        // 全选/取消全选看字选拼音错题
+        function toggleAllDictationMistakes(checked) {
+            const checkboxes = document.querySelectorAll('.dictation-mistake-checkbox');
+            checkboxes.forEach(cb => cb.checked = checked);
+            updateDictationSelectedCount();
+        }
+
+        // 更新看字选拼音已选数量
+        function updateDictationSelectedCount() {
+            const checkboxes = document.querySelectorAll('.dictation-mistake-checkbox:checked');
+            const count = checkboxes.length;
+            const countSpan = document.getElementById('dictationSelectedCount');
+            if (countSpan) countSpan.textContent = `已选: ${count}`;
+
+            // 更新全选复选框状态
+            const allCheckboxes = document.querySelectorAll('.dictation-mistake-checkbox');
+            const selectAll = document.getElementById('selectAllDictationMistakes');
+            if (selectAll) {
+                selectAll.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+                selectAll.indeterminate = count > 0 && count < allCheckboxes.length;
+            }
+        }
+
+        // 全选/取消全选听音选字错题
+        function toggleAllSoundMistakes(checked) {
+            const checkboxes = document.querySelectorAll('.sound-mistake-checkbox');
+            checkboxes.forEach(cb => cb.checked = checked);
+            updateSoundSelectedCount();
+        }
+
+        // 更新听音选字已选数量
+        function updateSoundSelectedCount() {
+            const checkboxes = document.querySelectorAll('.sound-mistake-checkbox:checked');
+            const count = checkboxes.length;
+            const countSpan = document.getElementById('soundSelectedCount');
+            if (countSpan) countSpan.textContent = `已选: ${count}`;
+
+            // 更新全选复选框状态
+            const allCheckboxes = document.querySelectorAll('.sound-mistake-checkbox');
+            const selectAll = document.getElementById('selectAllSoundMistakes');
+            if (selectAll) {
+                selectAll.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+                selectAll.indeterminate = count > 0 && count < allCheckboxes.length;
+            }
+        }
+
+        // 练习选中的看字选拼音错题
+        function practiceSelectedDictationMistakes() {
+            const checkboxes = document.querySelectorAll('.dictation-mistake-checkbox:checked');
+            const selectedWords = Array.from(checkboxes).map(cb => cb.value);
+
+            if (selectedWords.length < 1) {
+                alert('请至少选择 1 个字词进行练习');
+                return;
+            }
+
+            // 切换到看字选拼音练习标签
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.practice-section').forEach(s => s.classList.remove('active'));
+            document.querySelector('[data-tab="practice"]').classList.add('active');
+            document.getElementById('practice-section').classList.add('active');
+            showPinyinQuizUI(document.getElementById('practice-content'), selectedWords);
+        }
+
+        // 练习全部看字选拼音错题
+        function practiceAllDictationMistakes() {
+            const words = dictationMistakes.map(m => typeof m === 'object' ? m.text : m);
+
+            if (words.length < 1) {
+                alert('暂无错题可练习');
+                return;
+            }
+
+            // 切换到看字选拼音练习标签
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.practice-section').forEach(s => s.classList.remove('active'));
+            document.querySelector('[data-tab="practice"]').classList.add('active');
+            document.getElementById('practice-section').classList.add('active');
+            showPinyinQuizUI(document.getElementById('practice-content'), words);
+        }
+
+        // 练习选中的听音选字错题
+        function practiceSelectedSoundMistakes() {
+            const checkboxes = document.querySelectorAll('.sound-mistake-checkbox:checked');
+            const selectedWords = Array.from(checkboxes).map(cb => cb.value);
+
+            if (selectedWords.length < 2) {
+                alert('请至少选择 2 个字词进行练习');
+                return;
+            }
+
+            // 切换到听音选字练习标签
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.practice-section').forEach(s => s.classList.remove('active'));
+            document.querySelector('[data-tab="sound"]').classList.add('active');
+            document.getElementById('sound-section').classList.add('active');
+            startGameWithWords(selectedWords);
+        }
+
+        // 练习全部听音选字错题
+        function practiceAllSoundMistakes() {
+            const words = soundMistakes.map(m => typeof m === 'object' ? m.text : m);
+
+            if (words.length < 2) {
+                alert('请至少有 2 个错题才能开始练习');
+                return;
+            }
+
+            // 切换到听音选字练习标签
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.practice-section').forEach(s => s.classList.remove('active'));
+            document.querySelector('[data-tab="sound"]').classList.add('active');
+            document.getElementById('sound-section').classList.add('active');
+            startGameWithWords(words);
+        }
+
         // 更新统计
         function updateStatsSection() {
+            // 看字选拼音统计
+            document.getElementById('dictationMistakeCount').textContent = dictationMistakes.length;
+            const dictationTotalErrors = dictationMistakes.reduce((sum, m) => sum + (typeof m === 'object' ? m.count : 1), 0);
+            document.getElementById('dictationTotalErrors').textContent = dictationTotalErrors;
+
+            // 听音选字统计
+            document.getElementById('soundMistakeCount').textContent = soundMistakes.length;
+            const soundTotalErrors = soundMistakes.reduce((sum, m) => sum + (typeof m === 'object' ? m.count : 1), 0);
+            document.getElementById('soundTotalErrors').textContent = soundTotalErrors;
+
+            // 总体统计
             document.getElementById('totalLearned').textContent = stats.totalLearned || 0;
             document.getElementById('totalPractice').textContent = stats.totalPractice || 0;
             const rate = stats.totalPractice > 0 ? Math.round((stats.correctCount / stats.totalPractice) * 100) : 0;
             document.getElementById('correctRate').textContent = rate + '%';
-            document.getElementById('mistakeCount').textContent = getMistakesCount();
+            document.getElementById('totalMistakeCount').textContent = getMistakesCount();
 
             // 显示已学字词列表
             const listContainer = document.getElementById('learnedWordsList');
