@@ -1194,6 +1194,7 @@
             currentPin = pin;
             saveSession(pin);
             saveLocalData();
+            console.log('New user logged in:', { userId, hasPin: !!currentPin });
             showLoginMessage('<div class="success-message">注册成功！已创建云端备份</div>');
         }
 
@@ -1205,6 +1206,7 @@
                 if (decryptedData) {
                     mistakes = decryptedData.mistakes || [];
                     stats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
+                    console.log('Cloud data loaded:', { mistakesCount: mistakes.length, stats });
                 }
             }
 
@@ -1212,6 +1214,7 @@
             currentPin = pin;
             saveSession(pin);
             saveLocalData();
+            console.log('Existing user logged in:', { userId, hasPin: !!currentPin });
             showLoginMessage('<div class="success-message">登录成功！数据已同步</div>');
         }
 
@@ -1284,6 +1287,7 @@
 
         function autoSync() {
             if (!currentUser || !currentPin) {
+                console.log('Auto sync skipped: no user or pin', { hasUser: !!currentUser, hasPin: !!currentPin });
                 return;
             }
 
@@ -1291,12 +1295,16 @@
                 clearTimeout(syncTimeout);
             }
 
+            console.log('Scheduling auto sync in', AUTO_SYNC_DELAY_MS, 'ms');
+
             syncTimeout = setTimeout(async () => {
                 try {
+                    console.log('Executing auto sync for user:', currentUser.user.id);
                     await saveUserData(currentUser.user.id, currentPin);
                     updateSyncStatus('synced', '已自动同步');
+                    console.log('Auto sync completed successfully');
                 } catch (error) {
-                    console.log('Auto sync failed:', error);
+                    console.error('Auto sync failed:', error);
                 }
             }, AUTO_SYNC_DELAY_MS);
         }
@@ -1314,13 +1322,16 @@
             }
 
             try {
+                console.log('Checking for existing session...');
                 // 检查 Supabase Auth 的 session
                 const { data: { session } } = await supabaseClient.auth.getSession();
 
                 if (session) {
+                    console.log('Found Supabase session for user:', session.user.id);
                     const savedPin = getSavedPin();
 
                     if (savedPin) {
+                        console.log('Found saved PIN, restoring session...');
                         // 有有效的 session 和 PIN，恢复登录状态
                         currentUser = { user: session.user, session: session };
                         currentPin = savedPin;
@@ -1332,17 +1343,23 @@
                             if (decryptedData) {
                                 mistakes = decryptedData.mistakes || [];
                                 stats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
+                                console.log('Cloud data restored:', { mistakesCount: mistakes.length, stats });
                             }
+                        } else {
+                            console.log('No cloud data found, using local data');
                         }
 
-                        console.log('会话已恢复，自动登录成功');
+                        console.log('Session restored successfully:', { hasUser: !!currentUser, hasPin: !!currentPin });
                     } else {
+                        console.log('No saved PIN found, signing out...');
                         // 有 Supabase session 但没有 PIN（可能是过期了）
                         await supabaseClient.auth.signOut();
                     }
+                } else {
+                    console.log('No Supabase session found');
                 }
             } catch (error) {
-                console.log('会话恢复失败:', error.message);
+                console.error('Session restore failed:', error);
             }
 
             updateLoginUI();
@@ -1387,23 +1404,42 @@
             });
         });
 
-        // 监听输入 - 只过滤非法字符，不自动更新
-        document.getElementById('charInput').addEventListener('input', (e) => {
-            const selectionStart = e.target.selectionStart;
-            const originalValue = e.target.value;
+        // 输入框中文输入法处理
+        let isComposing = false;
+        const charInput = document.getElementById('charInput');
+
+        charInput.addEventListener('compositionstart', () => {
+            isComposing = true;
+        });
+
+        charInput.addEventListener('compositionend', (e) => {
+            isComposing = false;
+            // 手动触发 input 处理
+            handleInputChange(e.target);
+        });
+
+        charInput.addEventListener('input', (e) => {
+            if (!isComposing) {
+                handleInputChange(e.target);
+            }
+        });
+
+        function handleInputChange(input) {
+            const selectionStart = input.selectionStart;
+            const originalValue = input.value;
             // 只允许中文、空格、逗号、顿号
             const filteredValue = originalValue.replace(/[^\u4e00-\u9fa5,，、\s]/g, '');
 
             if (filteredValue !== originalValue) {
-                e.target.value = filteredValue;
+                input.value = filteredValue;
                 const newCursorPos = Math.max(0, selectionStart - (originalValue.length - filteredValue.length));
-                e.target.setSelectionRange(newCursorPos, newCursorPos);
+                input.setSelectionRange(newCursorPos, newCursorPos);
             }
-        });
+        }
 
-        // 监听回车键 - 触发添加
-        document.getElementById('charInput').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
+        // 监听回车键 - 触发添加（在非输入法状态下）
+        charInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !isComposing) {
                 addInput();
             }
         });
