@@ -1,0 +1,1752 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌟 快乐学汉字 🌟</title>
+    <script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.18.2/dist/index.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', 'SimHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            animation: bounceIn 0.8s ease;
+        }
+
+        @keyframes bounceIn {
+            0% { transform: scale(0.3); opacity: 0; }
+            50% { transform: scale(1.05); }
+            70% { transform: scale(0.9); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            animation: slideUp 0.6s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .input-section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+            text-align: center;
+        }
+
+        #charInput {
+            width: 100%;
+            padding: 18px;
+            font-size: 1.3em;
+            border: 3px solid #ddd;
+            border-radius: 15px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        #charInput:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .section-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 25px;
+            background: #f0f0f0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95em;
+            font-weight: bold;
+            color: #666;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .tab-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .practice-section {
+            display: none;
+        }
+
+        .practice-section.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .section-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .section-title h2 {
+            color: #667eea;
+            font-size: 1.5em;
+        }
+
+        .action-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            transform: scale(1.05);
+        }
+
+        /* 拼音学习样式 */
+        .pinyin-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 15px;
+        }
+
+        .pinyin-card {
+            background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+            border-radius: 15px;
+            padding: 18px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .pinyin-card:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        .pinyin-card .text {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #2d3436;
+            margin-bottom: 8px;
+        }
+
+        .pinyin-card .pinyin-hint {
+            font-size: 1.3em;
+            color: #636e72;
+        }
+
+        /* 练习本样式 */
+        .practice-book {
+            background: #fff9e6;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .practice-char {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 12px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .practice-char .big-char {
+            font-size: 2.5em;
+            width: 70px;
+            text-align: center;
+            margin-right: 15px;
+            color: #667eea;
+        }
+
+        .practice-char .pinyin-display {
+            font-size: 1.3em;
+            color: #636e72;
+            margin-right: 15px;
+            min-width: 90px;
+        }
+
+        .practice-char .practice-input {
+            flex: 1;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .practice-char .practice-input input {
+            padding: 8px 12px;
+            font-size: 1em;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            min-width: 100px;
+        }
+
+        .practice-char .practice-input input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .practice-char .practice-input input.correct {
+            border-color: #11998e;
+            background: #d4edda;
+        }
+
+        .practice-char .practice-input input.wrong {
+            border-color: #eb3349;
+            background: #f8d7da;
+        }
+
+        .practice-char .play-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 0.95em;
+            transition: all 0.3s ease;
+        }
+
+        .practice-char .play-btn:hover {
+            background: #764ba2;
+            transform: scale(1.05);
+        }
+
+        .practice-instruction {
+            background: #e3f2fd;
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            color: #1976d2;
+            font-size: 0.95em;
+        }
+
+        /* 统计样式 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .stat-card .number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #2d3436;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .label {
+            font-size: 1em;
+            color: #636e72;
+        }
+
+        .mistake-list {
+            margin-top: 20px;
+        }
+
+        .mistake-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background: #fff5f5;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            border-left: 4px solid #eb3349;
+        }
+
+        .mistake-item .char {
+            font-size: 1.5em;
+            color: #2d3436;
+            font-weight: bold;
+        }
+
+        .mistake-item .info {
+            font-size: 0.9em;
+            color: #666;
+            margin-left: 10px;
+        }
+
+        .mistake-item .remove-btn {
+            background: #eb3349;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: all 0.3s ease;
+        }
+
+        .mistake-item .remove-btn:hover {
+            transform: scale(1.05);
+        }
+
+        /* 听音选字样式 */
+        .sound-game {
+            text-align: center;
+        }
+
+        .game-progress {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+            color: #666;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.5s ease;
+        }
+
+        .sound-btn {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            font-size: 2.5em;
+            cursor: pointer;
+            margin: 15px auto;
+            display: block;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .sound-btn:hover:not(:disabled) {
+            transform: scale(1.1);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.6);
+        }
+
+        .sound-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .option-btn {
+            padding: 25px;
+            font-size: 2em;
+            border: 3px solid #ddd;
+            border-radius: 15px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .option-btn:hover:not(:disabled) {
+            border-color: #667eea;
+            background: #f8f9ff;
+            transform: scale(1.02);
+        }
+
+        .option-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .option-btn.correct {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            border-color: #11998e;
+            animation: pulse 0.5s ease;
+        }
+
+        .option-btn.wrong {
+            background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+            color: white;
+            border-color: #eb3349;
+            animation: shake 0.5s ease;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        /* 结果显示 */
+        .result-box {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            border-radius: 15px;
+            margin-top: 20px;
+        }
+
+        .result-box .score {
+            font-size: 3em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .result-box .message {
+            font-size: 1.5em;
+            color: #2d3436;
+            margin-bottom: 20px;
+        }
+
+        .result-box .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 25px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.05);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .empty-state .emoji {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        footer {
+            text-align: center;
+            color: white;
+            margin-top: 20px;
+            opacity: 0.8;
+            font-size: 0.9em;
+        }
+
+        /* 登录模态框样式 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease;
+        }
+
+        .modal h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 1.5em;
+        }
+
+        .modal p {
+            color: #666;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 0.95em;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            color: #666;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group input::-webkit-outer-spin-button,
+        .form-group input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .form-group input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .modal-buttons button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.05);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #666;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .error-message {
+            color: #eb3349;
+            text-align: center;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        .success-message {
+            color: #11998e;
+            text-align: center;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        /* 同步按钮样式 */
+        .sync-section {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9ff;
+            border-radius: 10px;
+        }
+
+        .sync-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 0.95em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .sync-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .sync-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .sync-status {
+            font-size: 0.9em;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .sync-status.synced {
+            color: #11998e;
+        }
+
+        .sync-status.syncing {
+            color: #667eea;
+        }
+
+        .sync-status.error {
+            color: #eb3349;
+        }
+
+        .sync-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+
+        .sync-status.synced .sync-status-dot {
+            background: #11998e;
+        }
+
+        .sync-status.syncing .sync-status-dot {
+            background: #667eea;
+            animation: pulse 1s infinite;
+        }
+
+        .sync-status.error .sync-status-dot {
+            background: #eb3349;
+        }
+
+        .user-info {
+            text-align: center;
+            padding: 10px;
+            background: #f0f8ff;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .user-info .username {
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .logout-link {
+            color: #eb3349;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .logout-link:hover {
+            color: #c0392b;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8em;
+            }
+
+            .pinyin-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .options-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .practice-char {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .practice-char .big-char,
+            .practice-char .pinyin-display {
+                margin-right: 0;
+                margin-bottom: 8px;
+            }
+
+            .section-tabs {
+                gap: 5px;
+            }
+
+            .tab-btn {
+                padding: 8px 15px;
+                font-size: 0.85em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌟 快乐学汉字 🌟</h1>
+            <p>输入字或词组，用空格或逗号分隔，开始练习吧！</p>
+            <div id="userInfoSection" style="display: none;">
+                <div class="user-info">
+                    <span>你好，<span class="username" id="displayUsername"></span>！</span>
+                    <span class="logout-link" onclick="handleLogout()">退出登录</span>
+                </div>
+                <div class="sync-section">
+                    <div class="sync-status" id="syncStatus">
+                        <div class="sync-status-dot"></div>
+                        <span id="syncStatusText">未同步</span>
+                    </div>
+                    <button class="sync-btn" onclick="manualSync()" id="syncBtn">
+                        <span>🔄</span>
+                        <span>同步数据</span>
+                    </button>
+                </div>
+            </div>
+            <div id="loginPrompt" style="text-align: center; margin-top: 15px;">
+                <button class="btn-primary" onclick="openLoginModal()" style="padding: 10px 25px; border: none; border-radius: 20px; font-size: 1em; font-weight: bold; cursor: pointer; background: rgba(255,255,255,0.2); color: white; transition: all 0.3s ease;">
+                    🔐 登录同步数据
+                </button>
+            </div>
+        </header>
+
+        <div class="card input-section">
+            <h2>✏️ 输入汉字</h2>
+            <input type="text" id="charInput" placeholder="输入字或词组，用空格或逗号分隔，比如：山水 天空 鸟儿" maxlength="100">
+            <div class="section-tabs">
+                <button class="tab-btn active" data-tab="pinyin">🔊 拼音学习</button>
+                <button class="tab-btn" data-tab="practice">📝 练习本</button>
+                <button class="tab-btn" data-tab="sound">👂 听音选字</button>
+                <button class="tab-btn" data-tab="mistakes">❌ 错字集</button>
+                <button class="tab-btn" data-tab="stats">📊 统计</button>
+            </div>
+        </div>
+
+        <!-- 拼音学习 -->
+        <div class="card practice-section active" id="pinyin-section">
+            <div class="section-title">
+                <h2>🔊 拼音学习</h2>
+            </div>
+            <p style="color: #666; margin-bottom: 15px;">点击卡片听发音，查看拼音</p>
+            <div id="pinyin-content">
+                <div class="empty-state">
+                    <div class="emoji">📝</div>
+                    <p>请先输入字或词组</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 练习本 -->
+        <div class="card practice-section" id="practice-section">
+            <div class="section-title">
+                <h2>📝 练习本</h2>
+            </div>
+            <div id="practice-content">
+                <div class="empty-state">
+                    <div class="emoji">📖</div>
+                    <p>请先输入字或词组</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 听音选字 -->
+        <div class="card practice-section" id="sound-section">
+            <div class="section-title">
+                <h2>👂 听音选字</h2>
+            </div>
+            <div id="sound-content">
+                <div class="empty-state">
+                    <div class="emoji">🎮</div>
+                    <p>请至少输入2个字或词组，然后开始游戏</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 错字集 -->
+        <div class="card practice-section" id="mistakes-section">
+            <div class="section-title">
+                <h2>❌ 错字集</h2>
+                <button class="action-btn btn-danger" onclick="clearMistakes()">清空错字集</button>
+            </div>
+            <div id="mistakes-content">
+                <div class="empty-state">
+                    <div class="emoji">✨</div>
+                    <p>暂时没有错字，继续加油！</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 统计 -->
+        <div class="card practice-section" id="stats-section">
+            <div class="section-title">
+                <h2>📊 学习统计</h2>
+                <button class="action-btn btn-danger" onclick="clearStats()">清空数据</button>
+            </div>
+            <p style="color: #666; margin-bottom: 15px;">💾 数据自动保存在浏览器中，下次打开还在</p>
+            <div id="stats-content">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="number" id="totalLearned">0</div>
+                        <div class="label">已学字词</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="totalPractice">0</div>
+                        <div class="label">练习次数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="correctRate">0%</div>
+                        <div class="label">正确率</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="mistakeCount">0</div>
+                        <div class="label">错字数量</div>
+                    </div>
+                </div>
+                <div id="learnedWordsList" style="margin-top: 20px;"></div>
+            </div>
+        </div>
+
+        <footer>
+            <p>💖 用心陪伴孩子的每一次学习 💖</p>
+        </footer>
+
+        <!-- 登录模态框 -->
+        <div class="modal-overlay" id="loginModal">
+            <div class="modal">
+                <h2 id="modalTitle">🔐 登录 / 注册</h2>
+                <p>输入你的名字和8位PIN码来同步学习数据</p>
+                <div class="form-group">
+                    <label for="usernameInput">用户名</label>
+                    <input type="text" id="usernameInput" placeholder="输入用户名" maxlength="20" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="pinInput">8位PIN码</label>
+                    <input type="number" id="pinInput" placeholder="输入8位数字" maxlength="8" min="0" max="99999999">
+                </div>
+                <div id="loginMessage"></div>
+                <div class="modal-buttons">
+                    <button class="btn-secondary" onclick="closeLoginModal()">取消</button>
+                    <button class="btn-primary" onclick="handleLogin()">登录 / 注册</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 数据存储
+        let currentChars = [];
+        let mistakes = JSON.parse(localStorage.getItem('hanzi_mistakes') || '[]');
+        let stats = JSON.parse(localStorage.getItem('hanzi_stats') || '{"totalLearned":0,"totalPractice":0,"correctCount":0}');
+
+        // 听音选字游戏状态
+        let gameQueue = [];
+        let currentQuestion = null;
+        let gameScore = 0;
+        let gameTotal = 0;
+        let soundAnswered = false;
+
+        // ========== 云同步相关 ==========
+        let currentUser = null;  // { username: string, gistUrl: string, gistId: string }
+        let currentPin = null;   // 存储在内存中，用于加密解密
+
+        // 加密/解密函数 (使用 AES)
+        function encryptData(data, pin) {
+            const jsonString = JSON.stringify(data);
+            return CryptoJS.AES.encrypt(jsonString, pin).toString();
+        }
+
+        function decryptData(encryptedData, pin) {
+            try {
+                const bytes = CryptoJS.AES.decrypt(encryptedData, pin);
+                const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
+                if (!decryptedString) return null;
+                return JSON.parse(decryptedString);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // 生成唯一的用户ID
+        function generateUserId(username) {
+            const timestamp = Date.now().toString(36);
+            const random = Math.random().toString(36).substring(2, 8);
+            return `${username}_${timestamp}_${random}`;
+        }
+
+        // GitHub Gist API 函数
+        async function createGist(username, pin) {
+            const userId = generateUserId(username);
+            const data = {
+                mistakes: mistakes,
+                stats: stats,
+                version: 1,
+                createdAt: new Date().toISOString()
+            };
+            const encrypted = encryptData(data, pin);
+
+            const gistData = {
+                description: `快乐学汉字 - ${username} 的学习数据`,
+                public: false,
+                files: {
+                    'hanzi_learning_data.json': {
+                        content: JSON.stringify({ encrypted: encrypted, userId: userId })
+                    }
+                }
+            };
+
+            const response = await fetch('https://api.github.com/gists', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // 匿名创建 Gist，不需要 token
+                },
+                body: JSON.stringify(gistData)
+            });
+
+            if (!response.ok) {
+                throw new Error('创建 Gist 失败');
+            }
+
+            const gist = await response.json();
+            return {
+                gistUrl: gist.html_url,
+                gistId: gist.id,
+                gistApiUrl: gist.url,
+                userId: userId
+            };
+        }
+
+        async function updateGist(gistApiUrl, pin) {
+            const data = {
+                mistakes: mistakes,
+                stats: stats,
+                version: 1,
+                updatedAt: new Date().toISOString()
+            };
+            const encrypted = encryptData(data, pin);
+
+            // 获取现有 Gist 内容以保持文件名和结构
+            const getResponse = await fetch(gistApiUrl);
+            const existingGist = await getResponse.json();
+            const fileName = Object.keys(existingGist.files)[0];
+            const existingUserId = JSON.parse(existingGist.files[fileName].content).userId;
+
+            const gistData = {
+                files: {
+                    [fileName]: {
+                        content: JSON.stringify({ encrypted: encrypted, userId: existingUserId })
+                    }
+                }
+            };
+
+            const response = await fetch(gistApiUrl, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(gistData)
+            });
+
+            if (!response.ok) {
+                throw new Error('更新 Gist 失败');
+            }
+
+            return await response.json();
+        }
+
+        async function getGist(gistId) {
+            const response = await fetch(`https://api.github.com/gists/${gistId}`);
+            if (!response.ok) {
+                throw new Error('获取 Gist 失败');
+            }
+            return await response.json();
+        }
+
+        // 登录模态框控制
+        function openLoginModal() {
+            document.getElementById('loginModal').classList.add('active');
+            document.getElementById('loginMessage').innerHTML = '';
+            document.getElementById('usernameInput').value = '';
+            document.getElementById('pinInput').value = '';
+            document.getElementById('usernameInput').focus();
+        }
+
+        function closeLoginModal() {
+            document.getElementById('loginModal').classList.remove('active');
+        }
+
+        // 登录/注册处理
+        async function handleLogin() {
+            const username = document.getElementById('usernameInput').value.trim();
+            const pin = document.getElementById('pinInput').value.trim();
+            const messageDiv = document.getElementById('loginMessage');
+
+            // 验证输入
+            if (!username) {
+                messageDiv.innerHTML = '<div class="error-message">请输入用户名</div>';
+                return;
+            }
+            if (!/^\d{8}$/.test(pin)) {
+                messageDiv.innerHTML = '<div class="error-message">请输入8位数字PIN码</div>';
+                return;
+            }
+
+            messageDiv.innerHTML = '<div class="success-message">正在处理...</div>';
+
+            try {
+                // 检查是否是现有用户（从本地存储查找）
+                const users = JSON.parse(localStorage.getItem('hanzi_cloud_users') || '{}');
+                const existingUser = users[username];
+
+                if (existingUser) {
+                    // 现有用户 - 尝试从 Gist 获取数据
+                    const gist = await getGist(existingUser.gistId);
+                    const fileName = Object.keys(gist.files)[0];
+                    const content = JSON.parse(gist.files[fileName].content);
+
+                    // 使用 PIN 解密数据
+                    const decryptedData = decryptData(content.encrypted, pin);
+
+                    if (!decryptedData) {
+                        messageDiv.innerHTML = '<div class="error-message">PIN码错误，无法解密数据</div>';
+                        return;
+                    }
+
+                    // 解密成功，加载数据
+                    mistakes = decryptedData.mistakes || [];
+                    stats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
+
+                    currentUser = existingUser;
+                    currentPin = pin;
+
+                    saveLocalData();
+                    messageDiv.innerHTML = '<div class="success-message">登录成功！数据已同步</div>';
+                } else {
+                    // 新用户 - 创建 Gist
+                    const gistInfo = await createGist(username, pin);
+
+                    currentUser = {
+                        username: username,
+                        gistUrl: gistInfo.gistUrl,
+                        gistId: gistInfo.gistId,
+                        gistApiUrl: gistInfo.gistApiUrl,
+                        userId: gistInfo.userId
+                    };
+                    currentPin = pin;
+
+                    users[username] = currentUser;
+                    localStorage.setItem('hanzi_cloud_users', JSON.stringify(users));
+                    saveLocalData();
+
+                    messageDiv.innerHTML = '<div class="success-message">注册成功！已创建云端备份</div>';
+                }
+
+                // 更新 UI
+                updateLoginUI();
+
+                setTimeout(() => {
+                    closeLoginModal();
+                    updateStatsSection();
+                    updateMistakesSection();
+                }, 1000);
+
+            } catch (error) {
+                console.error('Login error:', error);
+                messageDiv.innerHTML = `<div class="error-message">登录失败: ${error.message}</div>`;
+            }
+        }
+
+        // 退出登录
+        function handleLogout() {
+            if (confirm('确定要退出登录吗？本地数据将保留，但不会自动同步到云端。')) {
+                currentUser = null;
+                currentPin = null;
+                updateLoginUI();
+            }
+        }
+
+        // 更新登录相关的 UI
+        function updateLoginUI() {
+            const userInfoSection = document.getElementById('userInfoSection');
+            const loginPrompt = document.getElementById('loginPrompt');
+
+            if (currentUser) {
+                userInfoSection.style.display = 'block';
+                loginPrompt.style.display = 'none';
+                document.getElementById('displayUsername').textContent = currentUser.username;
+                updateSyncStatus('synced', '已同步');
+            } else {
+                userInfoSection.style.display = 'none';
+                loginPrompt.style.display = 'block';
+            }
+        }
+
+        // 更新同步状态
+        function updateSyncStatus(status, text) {
+            const statusDiv = document.getElementById('syncStatus');
+            const statusText = document.getElementById('syncStatusText');
+
+            statusDiv.className = 'sync-status ' + status;
+            statusText.textContent = text;
+        }
+
+        // 手动同步
+        async function manualSync() {
+            if (!currentUser || !currentPin) {
+                alert('请先登录');
+                return;
+            }
+
+            const syncBtn = document.getElementById('syncBtn');
+            syncBtn.disabled = true;
+            updateSyncStatus('syncing', '正在同步...');
+
+            try {
+                await updateGist(currentUser.gistApiUrl, currentPin);
+                updateSyncStatus('synced', '同步成功: ' + new Date().toLocaleTimeString());
+            } catch (error) {
+                console.error('Sync error:', error);
+                updateSyncStatus('error', '同步失败: ' + error.message);
+            } finally {
+                syncBtn.disabled = false;
+            }
+        }
+
+        // 自动同步（在数据变更时调用）
+        function autoSync() {
+            if (currentUser && currentPin) {
+                // 延迟同步，避免频繁请求
+                if (window.syncTimeout) clearTimeout(window.syncTimeout);
+                window.syncTimeout = setTimeout(() => {
+                    updateGist(currentUser.gistApiUrl, currentPin)
+                        .then(() => updateSyncStatus('synced', '已自动同步'))
+                        .catch(err => console.log('Auto sync failed:', err));
+                }, 3000);
+            }
+        }
+
+        // 保存本地数据
+        function saveLocalData() {
+            localStorage.setItem('hanzi_mistakes', JSON.stringify(mistakes));
+            localStorage.setItem('hanzi_stats', JSON.stringify(stats));
+        }
+
+        // 初始化：检查是否有已登录用户
+        function initCloudSync() {
+            const users = JSON.parse(localStorage.getItem('hanzi_cloud_users') || '{}');
+            const lastUser = localStorage.getItem('hanzi_last_user');
+
+            if (lastUser && users[lastUser]) {
+                // 有上次登录的用户，但需要重新输入 PIN
+                // 不自动登录，显示登录按钮
+            }
+
+            updateLoginUI();
+        }
+
+        // 覆盖原有的保存函数以支持自动同步
+        const originalSaveMistakes = saveMistakes;
+        const originalSaveStats = saveStats;
+
+        function saveMistakes() {
+            originalSaveMistakes();
+            autoSync();
+        }
+
+        function saveStats() {
+            originalSaveStats();
+            autoSync();
+        }
+
+        // 页面加载时初始化
+        window.addEventListener('load', () => {
+            initCloudSync();
+        });
+
+        // 初始化标签页切换
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.practice-section').forEach(s => s.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(btn.dataset.tab + '-section').classList.add('active');
+
+                // 切换到错字集或统计时刷新
+                if (btn.dataset.tab === 'mistakes') updateMistakesSection();
+                if (btn.dataset.tab === 'stats') updateStatsSection();
+            });
+        });
+
+        // 监听输入
+        document.getElementById('charInput').addEventListener('input', (e) => {
+            const input = e.target.value.replace(/[^\u4e00-\u9fa5\s,，、\n]/g, '');
+            e.target.value = input;
+            currentChars = [...new Set(input.split(/[\s,，、\n]+/).filter(s => s.trim()))];
+            updateAllSections();
+        });
+
+        function updateAllSections() {
+            updatePinyinSection();
+            updatePracticeSection();
+            updateSoundSection();
+        }
+
+        // 转义HTML特殊字符
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 转义字符串用于JavaScript
+        function escapeJs(text) {
+            return text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+        }
+
+        function getPinyin(text) {
+            try {
+                return pinyinPro.pinyin(text, { toneType: 'symbol' });
+            } catch (e) {
+                return '?';
+            }
+        }
+
+        // 添加到已学字词
+        function addToLearned(texts) {
+            texts.forEach(text => {
+                if (!stats.learnedWords) stats.learnedWords = [];
+                if (!stats.learnedWords.includes(text)) {
+                    stats.learnedWords.push(text);
+                    stats.totalLearned = stats.learnedWords.length;
+                }
+            });
+            saveStats();
+        }
+
+        // 添加到错字集
+        function addToMistakes(text) {
+            const existing = mistakes.find(m => typeof m === 'object' ? m.text === text : m === text);
+            if (existing) {
+                if (typeof existing === 'object') {
+                    existing.count++;
+                    existing.lastWrong = new Date().toISOString();
+                } else {
+                    // 转换旧数据格式
+                    const idx = mistakes.indexOf(existing);
+                    mistakes[idx] = { text: existing, count: 2, firstWrong: new Date().toISOString(), lastWrong: new Date().toISOString() };
+                }
+            } else {
+                mistakes.push({ text: text, count: 1, firstWrong: new Date().toISOString(), lastWrong: new Date().toISOString() });
+            }
+            saveMistakes();
+        }
+
+        // 从错字集移除
+        function removeFromMistakes(text) {
+            mistakes = mistakes.filter(m => m !== text);
+            saveMistakes();
+            updateMistakesSection();
+            updateStatsSection();
+        }
+
+        function saveMistakes() {
+            localStorage.setItem('hanzi_mistakes', JSON.stringify(mistakes));
+        }
+
+        function saveStats() {
+            stats.lastPractice = new Date().toISOString();
+            localStorage.setItem('hanzi_stats', JSON.stringify(stats));
+        }
+
+        function clearMistakes() {
+            if (confirm('确定要清空错字集吗？')) {
+                mistakes = [];
+                saveMistakes();
+                updateMistakesSection();
+                updateStatsSection();
+            }
+        }
+
+        function clearStats() {
+            if (confirm('确定要清空所有统计数据吗？')) {
+                stats = { totalLearned: 0, totalPractice: 0, correctCount: 0, learnedWords: [] };
+                saveStats();
+                updateStatsSection();
+            }
+        }
+
+        // 更新拼音学习区域
+        function updatePinyinSection() {
+            const container = document.getElementById('pinyin-content');
+            if (currentChars.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="emoji">📝</div>
+                        <p>请先输入字或词组</p>
+                    </div>
+                `;
+                return;
+            }
+
+            addToLearned(currentChars);
+
+            let html = '<div class="pinyin-grid">';
+            currentChars.forEach(text => {
+                const pinyin = getPinyin(text);
+                html += `
+                    <div class="pinyin-card" onclick="speakText('${text}')">
+                        <div class="text">${text}</div>
+                        <div class="pinyin-hint">${pinyin}</div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // 更新练习本
+        function updatePracticeSection() {
+            const container = document.getElementById('practice-content');
+            if (currentChars.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="emoji">📖</div>
+                        <p>请先输入字或词组</p>
+                    </div>
+                `;
+                return;
+            }
+
+            addToLearned(currentChars);
+
+            let html = `
+                <div class="practice-instruction">
+                    <strong>练习说明：</strong>听发音，在输入框中写出对应的拼音（可不用声调）
+                </div>
+                <div class="practice-book">
+            `;
+
+            currentChars.forEach((text, idx) => {
+                const pinyin = getPinyin(text);
+                const safeText = escapeHtml(text);
+                const safePinyin = escapeHtml(pinyin);
+                const jsText = escapeJs(text);
+                const jsPinyin = escapeJs(pinyin);
+                html += `
+                    <div class="practice-char" data-text="${jsText}" data-pinyin="${jsPinyin}">
+                        <div class="big-char">${safeText}</div>
+                        <div class="pinyin-display">${safePinyin}</div>
+                        <div class="practice-input">
+                            <input type="text" class="pinyin-input" placeholder="输入拼音" oninput="checkPinyin(this, '${jsPinyin}', '${jsText}')">
+                            <button class="play-btn" onclick="speakText('${jsText}')">🔊</button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // 检查拼音
+        function checkPinyin(input, correctPinyin, text) {
+            const cleanInput = input.value.toLowerCase()
+                .replace(/[āáǎà]/g, 'a').replace(/[ēéěè]/g, 'e')
+                .replace(/[īíǐì]/g, 'i').replace(/[ōóǒò]/g, 'o')
+                .replace(/[ūúǔù]/g, 'u').replace(/[ǖǘǚǜü]/g, 'v')
+                .replace(/\d/g, '').replace(/\s/g, '');
+
+            const cleanCorrect = correctPinyin.toLowerCase()
+                .replace(/[āáǎà]/g, 'a').replace(/[ēéěè]/g, 'e')
+                .replace(/[īíǐì]/g, 'i').replace(/[ōóǒò]/g, 'o')
+                .replace(/[ūúǔù]/g, 'u').replace(/[ǖǘǚǜü]/g, 'v')
+                .replace(/\d/g, '').replace(/\s/g, '');
+
+            stats.totalPractice++;
+
+            if (cleanInput === cleanCorrect && cleanInput.length > 0) {
+                input.classList.remove('wrong');
+                input.classList.add('correct');
+                stats.correctCount++;
+                // 如果之前在错字集，答对3次后移除
+                const mistakeIndex = mistakes.indexOf(text);
+                if (mistakeIndex !== -1) {
+                    const count = parseInt(input.dataset.correctCount || 0) + 1;
+                    input.dataset.correctCount = count;
+                    if (count >= 3) {
+                        removeFromMistakes(text);
+                        input.dataset.correctCount = 0;
+                    }
+                }
+            } else if (input.value.length > 0) {
+                input.classList.remove('correct');
+                input.classList.add('wrong');
+                addToMistakes(text);
+            } else {
+                input.classList.remove('correct', 'wrong');
+                stats.totalPractice--;
+            }
+
+            saveStats();
+        }
+
+        // 更新听音选字
+        function updateSoundSection() {
+            const container = document.getElementById('sound-content');
+            const charsToUse = currentChars.length >= 2 ? currentChars : mistakes.map(m => typeof m === 'object' ? m.text : m);
+
+            if (charsToUse.length < 2) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="emoji">🎮</div>
+                        <p>请至少输入2个字或词组，或使用错字集练习</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // 创建游戏队列，每个字/词组都会被问到
+            gameQueue = [...charsToUse].sort(() => Math.random() - 0.5);
+            gameScore = 0;
+            gameTotal = gameQueue.length;
+
+            startGame();
+        }
+
+        function startGame() {
+            const container = document.getElementById('sound-content');
+
+            if (gameQueue.length === 0) {
+                // 游戏结束
+                const rate = gameTotal > 0 ? Math.round((gameScore / gameTotal) * 100) : 0;
+                container.innerHTML = `
+                    <div class="result-box">
+                        <div class="score">${rate}%</div>
+                        <div class="message">答对 ${gameScore} / ${gameTotal} 题</div>
+                        <button class="btn btn-primary" onclick="updateSoundSection()">🔄 再来一局</button>
+                        ${mistakes.length > 0 ? '<button class="btn btn-primary" onclick="practiceMistakes()">📝 练习错字</button>' : ''}
+                    </div>
+                `;
+                return;
+            }
+
+            currentQuestion = gameQueue.pop();
+            const allOptions = [...currentChars.length >= 2 ? currentChars : mistakes.map(m => typeof m === 'object' ? m.text : m)];
+
+            // 生成选项
+            let options = [currentQuestion];
+            while (options.length < 4 && options.length < allOptions.length) {
+                const randomOption = allOptions[Math.floor(Math.random() * allOptions.length)];
+                if (!options.includes(randomOption)) {
+                    options.push(randomOption);
+                }
+            }
+            options = options.sort(() => Math.random() - 0.5);
+
+            const progress = ((gameTotal - gameQueue.length) / gameTotal * 100).toFixed(0);
+
+            container.innerHTML = `
+                <div class="game-progress">
+                    <span>进度: ${gameTotal - gameQueue.length} / ${gameTotal}</span>
+                    <span>得分: ${gameScore}</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${progress}%"></div>
+                </div>
+                <div class="sound-game">
+                    <button class="sound-btn" id="soundBtn" onclick="playSound()">🔊</button>
+                    <div class="options-grid" id="soundOptions">
+                        ${options.map((opt, idx) => `<button class="option-btn" data-idx="${idx}" onclick="handleOptionClick(${idx})">${escapeHtml(opt)}</button>`).join('')}
+                    </div>
+                </div>
+            `;
+
+            // 保存选项到数组
+            window.currentOptions = options;
+            soundAnswered = false;
+            // 自动播放
+            setTimeout(() => playSound(), 300);
+        }
+
+        function handleOptionClick(idx) {
+            if (window.currentOptions && window.currentOptions[idx] !== undefined) {
+                const btn = document.querySelector(`.option-btn[data-idx="${idx}"]`);
+                checkAnswer(window.currentOptions[idx], btn);
+            }
+        }
+
+        function playSound() {
+            if (currentQuestion) {
+                speakText(currentQuestion);
+            }
+        }
+
+        function checkAnswer(answer, btn) {
+            if (soundAnswered) return;
+            soundAnswered = true;
+
+            const allBtns = document.querySelectorAll('.option-btn');
+            allBtns.forEach(b => b.disabled = true);
+            document.getElementById('soundBtn').disabled = true;
+
+            stats.totalPractice++;
+
+            if (answer === currentQuestion) {
+                btn.classList.add('correct');
+                gameScore++;
+                stats.correctCount++;
+                speakText('答对了！');
+            } else {
+                btn.classList.add('wrong');
+                allBtns.forEach(b => {
+                    if (b.textContent === currentQuestion) {
+                        b.classList.add('correct');
+                    }
+                });
+                addToMistakes(currentQuestion);
+                speakText('再试试吧');
+            }
+
+            saveStats();
+
+            // 1.5秒后下一题
+            setTimeout(() => startGame(), 1500);
+        }
+
+        function practiceMistakes() {
+            currentChars = mistakes.map(m => typeof m === 'object' ? m.text : m);
+            document.getElementById('charInput').value = currentChars.join(' ');
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.practice-section').forEach(s => s.classList.remove('active'));
+            document.querySelector('[data-tab="sound"]').classList.add('active');
+            document.getElementById('sound-section').classList.add('active');
+            updateSoundSection();
+        }
+
+        // 更新错字集
+        function updateMistakesSection() {
+            const container = document.getElementById('mistakes-content');
+
+            if (mistakes.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="emoji">✨</div>
+                        <p>暂时没有错字，继续加油！</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // 按错误次数排序
+            const sortedMistakes = [...mistakes].sort((a, b) => {
+                const countA = typeof a === 'object' ? a.count : 1;
+                const countB = typeof b === 'object' ? b.count : 1;
+                return countB - countA;
+            });
+
+            let html = '<div class="mistake-list">';
+            sortedMistakes.forEach((item, idx) => {
+                const text = typeof item === 'object' ? item.text : item;
+                const count = typeof item === 'object' ? item.count : 1;
+                const lastWrong = typeof item === 'object' && item.lastWrong ? new Date(item.lastWrong).toLocaleString('zh-CN') : '';
+                const pinyin = getPinyin(text);
+
+                // 找到原始索引用于删除
+                const originalIdx = mistakes.indexOf(item);
+
+                html += `
+                    <div class="mistake-item">
+                        <div style="flex: 1;">
+                            <span class="char">${escapeHtml(text)}</span>
+                            <span class="info">${escapeHtml(pinyin)}</span>
+                            <span class="info" style="margin-left: 10px; color: #eb3349;">❌ 错误 ${count} 次</span>
+                            ${lastWrong ? `<span class="info" style="margin-left: 10px; color: #999; font-size: 0.85em;">${lastWrong}</span>` : ''}
+                        </div>
+                        <button class="remove-btn" onclick="removeFromMistakes(${originalIdx})">移除</button>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            if (mistakes.length > 0) {
+                const totalErrors = mistakes.reduce((sum, m) => sum + (typeof m === 'object' ? m.count : 1), 0);
+                html += `<p style="text-align: center; color: #666; margin-top: 15px;">累计错误 ${totalErrors} 次</p>`;
+                html += `<button class="btn btn-primary" onclick="practiceMistakes()" style="margin-top: 15px; padding: 12px 30px; border: none; border-radius: 25px; font-size: 1em; font-weight: bold; cursor: pointer; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">📝 练习这些错字</button>`;
+            }
+            container.innerHTML = html;
+        }
+
+        // 修改移除函数使用索引
+        function removeFromMistakes(idx) {
+            if (typeof idx === 'number') {
+                mistakes.splice(idx, 1);
+            } else {
+                mistakes = mistakes.filter(m => m !== idx);
+            }
+            saveMistakes();
+            updateMistakesSection();
+            updateStatsSection();
+        }
+
+        // 更新统计
+        function updateStatsSection() {
+            document.getElementById('totalLearned').textContent = stats.totalLearned || 0;
+            document.getElementById('totalPractice').textContent = stats.totalPractice || 0;
+            const rate = stats.totalPractice > 0 ? Math.round((stats.correctCount / stats.totalPractice) * 100) : 0;
+            document.getElementById('correctRate').textContent = rate + '%';
+            document.getElementById('mistakeCount').textContent = mistakes.length;
+
+            // 显示已学字词列表
+            const listContainer = document.getElementById('learnedWordsList');
+            if (stats.learnedWords && stats.learnedWords.length > 0) {
+                const lastPractice = stats.lastPractice ? new Date(stats.lastPractice).toLocaleString('zh-CN') : '暂无记录';
+                let html = `
+                    <div style="background: #f0f8ff; padding: 15px; border-radius: 10px;">
+                        <p style="color: #666; margin-bottom: 10px;">🕐 最后练习：${lastPractice}</p>
+                    </div>
+                    <div style="background: #fff9e6; padding: 15px; border-radius: 10px; margin-top: 10px;">
+                        <h3 style="color: #667eea; margin-bottom: 10px; font-size: 1.1em;">📚 已学字词列表</h3>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                `;
+                stats.learnedWords.slice().reverse().forEach(word => {
+                    html += `<span style="background: white; padding: 6px 12px; border-radius: 15px; font-size: 0.95em; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">${escapeHtml(word)}</span>`;
+                });
+                html += `
+                        </div>
+                    </div>
+                `;
+                listContainer.innerHTML = html;
+            } else {
+                listContainer.innerHTML = `<p style="text-align: center; color: #999; padding: 20px;">还没有学习记录，开始学习吧！</p>`;
+            }
+        }
+
+        // 语音功能
+        function speakText(text) {
+            if ('speechSynthesis' in window) {
+                speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'zh-CN';
+                utterance.rate = 0.8;
+                speechSynthesis.speak(utterance);
+            }
+        }
+
+        // 初始化统计显示
+        updateStatsSection();
+
+        // 页面加载时显示欢迎信息
+        window.addEventListener('load', () => {
+            if (stats.totalPractice > 0) {
+                const lastTime = stats.lastPractice ? new Date(stats.lastPractice).toLocaleString('zh-CN') : '';
+                setTimeout(() => {
+                    speakText(`欢迎回来！你已经练习了${stats.totalPractice}次，继续加油！`);
+                }, 500);
+            }
+        });
+    </script>
+</body>
+</html>
