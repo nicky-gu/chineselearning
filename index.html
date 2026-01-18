@@ -6,6 +6,7 @@
     <title>🌟 快乐学汉字 🌟</title>
     <script src="https://cdn.jsdelivr.net/npm/pinyin-pro@3.18.2/dist/index.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * {
             margin: 0;
@@ -946,12 +947,23 @@
         let soundAnswered = false;
 
         // ========== 云同步相关 ==========
-        let currentUser = null;  // { gistUrl: string, gistId: string, gistApiUrl: string }
+        let currentUser = null;  // { pin: string }
         let currentPin = null;   // 存储在内存中，用于加密解密
 
-        // Cloudflare Workers API 地址（代理 GitHub API，保护 Token）
-        // 部署后替换为你的 Workers URL
-        const API_BASE_URL = 'https://hanzi-learning-api.your-subdomain.workers.dev';
+        // Supabase 配置
+        // 请替换为你的 Supabase 项目 URL 和 anon key
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+        // 初始化 Supabase 客户端
+        let supabase = null;
+        try {
+            if (SUPABASE_URL !== 'YOUR_SUPABASE_URL') {
+                supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            }
+        } catch (e) {
+            console.log('Supabase not configured');
+        }
 
         // 加密/解密函数 (使用 AES)
         function encryptData(data, pin) {
@@ -977,51 +989,12 @@
             return `user_${timestamp}_${random}`;
         }
 
-        // GitHub Gist API 函数（通过 Cloudflare Workers 代理）
-        async function createGist(pin) {
-            const userId = generateUserId();
-            const data = {
-                mistakes: mistakes,
-                stats: stats,
-                version: 1,
-                createdAt: new Date().toISOString()
-            };
-            const encrypted = encryptData(data, pin);
-
-            const gistData = {
-                description: `快乐学汉字 - 学习数据`,
-                public: false,
-                files: {
-                    'hanzi_learning_data.json': {
-                        content: JSON.stringify({ encrypted: encrypted, userId: userId })
-                    }
-                }
-            };
-
-            // 通过 Cloudflare Workers 代理调用
-            const response = await fetch(`${API_BASE_URL}/api/gists`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(gistData)
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(`API 错误 (${response.status}): ${errorData.message || response.statusText}`);
+        // Supabase 数据操作函数
+        async function saveUserData(pin) {
+            if (!supabase) {
+                throw new Error('Supabase 未配置');
             }
 
-            const gist = await response.json();
-            return {
-                gistUrl: gist.html_url,
-                gistId: gist.id,
-                gistApiUrl: gist.url,
-                userId: userId
-            };
-        }
-
-        async function updateGist(gistId, pin) {
             const data = {
                 mistakes: mistakes,
                 stats: stats,
@@ -1030,39 +1003,47 @@
             };
             const encrypted = encryptData(data, pin);
 
-            // 检查数据大小（Gist 有大小限制）
-            const contentSize = JSON.stringify({ encrypted: encrypted, userId: '' }).length;
+            // 检查数据大小
+            const contentSize = encrypted.length;
             if (contentSize > 10000000) { // 10MB
                 throw new Error('数据太大，无法同步');
             }
 
-            // 通过 Cloudflare Workers 代理更新 Gist
-            const response = await fetch(`${API_BASE_URL}/api/gists/${gistId}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    content: JSON.stringify({ encrypted: encrypted, userId: '' })
-                })
-            });
+            const { error } = await supabase
+                .from('user_data')
+                .upsert({
+                    pin: pin,
+                    encrypted_data: encrypted,
+                    updated_at: new Date().toISOString()
+                }, {
+                    onConflict: 'pin'
+                });
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(`API 错误 (${response.status}): ${errorData.message || response.statusText}`);
+            if (error) {
+                throw new Error(`保存失败: ${error.message}`);
             }
-
-            return await response.json();
         }
 
-        async function getGist(gistId) {
-            // 获取公开的 Gist 不需要 token，可以直接调用 GitHub API
-            // 也可以通过 Workers 代理调用
-            const response = await fetch(`${API_BASE_URL}/api/gists/${gistId}`);
-            if (!response.ok) {
-                throw new Error('获取 Gist 失败');
+        async function loadUserData(pin) {
+            if (!supabase) {
+                throw new Error('Supabase 未配置');
             }
-            return await response.json();
+
+            const { data, error } = await supabase
+                .from('user_data')
+                .select('encrypted_data')
+                .eq('pin', pin)
+                .single();
+
+            if (error) {
+                if (error.code === 'PGRST116') {
+                    // 没有找到数据
+                    return null;
+                }
+                throw new Error(`加载失败: ${error.message}`);
+            }
+
+            return data?.encrypted_data || null;
         }
 
         // 登录模态框控制
@@ -1091,55 +1072,33 @@
             messageDiv.innerHTML = '<div class="success-message">正在处理...</div>';
 
             try {
-                // 检查是否是现有用户（从本地存储查找，用 PIN 码作为 key）
-                const gistData = JSON.parse(localStorage.getItem('hanzi_gist_data') || '{}');
-                const existingGist = gistData[pin];
+                // 从 Supabase 加载数据
+                const encryptedData = await loadUserData(pin);
 
-                if (existingGist) {
-                    // 现有用户 - 尝试从 Gist 获取数据
-                    try {
-                        const gist = await getGist(existingGist.gistId);
-                        const fileName = Object.keys(gist.files)[0];
-                        const content = JSON.parse(gist.files[fileName].content);
+                if (encryptedData) {
+                    // 现有用户 - 解密数据
+                    const decryptedData = decryptData(encryptedData, pin);
 
-                        // 使用 PIN 解密数据
-                        const decryptedData = decryptData(content.encrypted, pin);
-
-                        if (!decryptedData) {
-                            messageDiv.innerHTML = '<div class="error-message">PIN码错误，无法解密数据</div>';
-                            return;
-                        }
-
-                        // 解密成功，加载数据
-                        mistakes = decryptedData.mistakes || [];
-                        stats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
-
-                        currentUser = existingGist;
-                        currentPin = pin;
-
-                        saveLocalData();
-                        messageDiv.innerHTML = '<div class="success-message">登录成功！数据已同步</div>';
-                    } catch (e) {
-                        messageDiv.innerHTML = '<div class="error-message">云端数据不存在，将创建新账户</div>';
-                        // 继续创建新账户
+                    if (!decryptedData) {
+                        messageDiv.innerHTML = '<div class="error-message">PIN码错误，无法解密数据</div>';
+                        return;
                     }
-                }
 
-                if (!currentUser) {
-                    // 新用户 - 创建 Gist
-                    const gistInfo = await createGist(pin);
+                    // 解密成功，加载数据
+                    mistakes = decryptedData.mistakes || [];
+                    stats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
 
-                    currentUser = {
-                        gistUrl: gistInfo.gistUrl,
-                        gistId: gistInfo.gistId,
-                        gistApiUrl: gistInfo.gistApiUrl,
-                        userId: gistInfo.userId
-                    };
+                    currentUser = { pin: pin };
                     currentPin = pin;
 
-                    // 用 PIN 码作为 key 存储 Gist 信息
-                    gistData[pin] = currentUser;
-                    localStorage.setItem('hanzi_gist_data', JSON.stringify(gistData));
+                    saveLocalData();
+                    messageDiv.innerHTML = '<div class="success-message">登录成功！数据已同步</div>';
+                } else {
+                    // 新用户 - 保存当前数据
+                    await saveUserData(pin);
+
+                    currentUser = { pin: pin };
+                    currentPin = pin;
                     saveLocalData();
 
                     messageDiv.innerHTML = '<div class="success-message">注册成功！已创建云端备份</div>';
@@ -1205,7 +1164,7 @@
             updateSyncStatus('syncing', '正在同步...');
 
             try {
-                await updateGist(currentUser.gistId, currentPin);
+                await saveUserData(currentPin);
                 updateSyncStatus('synced', '同步成功: ' + new Date().toLocaleTimeString());
             } catch (error) {
                 console.error('Sync error:', error);
@@ -1221,7 +1180,7 @@
                 // 延迟同步，避免频繁请求
                 if (window.syncTimeout) clearTimeout(window.syncTimeout);
                 window.syncTimeout = setTimeout(() => {
-                    updateGist(currentUser.gistId, currentPin)
+                    saveUserData(currentPin)
                         .then(() => updateSyncStatus('synced', '已自动同步'))
                         .catch(err => console.log('Auto sync failed:', err));
                 }, 3000);
@@ -1236,8 +1195,10 @@
 
         // 初始化：检查是否有已登录用户
         function initCloudSync() {
-            // 不自动登录，用户需要每次输入 PIN 码
-            // 只显示登录按钮
+            // 检查 Supabase 是否配置
+            if (!supabase || SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+                console.log('Supabase 未配置，云端同步功能不可用');
+            }
             updateLoginUI();
         }
 
