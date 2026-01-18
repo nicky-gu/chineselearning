@@ -465,6 +465,18 @@
             background: #f0fff9;
         }
 
+        /* 拼音选项按钮样式 */
+        .pinyin-option-btn:hover:not(:disabled) {
+            border-color: #667eea;
+            background: #f8f9ff;
+            transform: translateY(-2px);
+        }
+
+        .pinyin-option-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
         @keyframes pulse {
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.05); }
@@ -1650,7 +1662,7 @@
             container.innerHTML = html;
         }
 
-        // 更新练习本 - 听写练习模式
+        // 更新练习本 - 看字选拼音模式
         function updatePracticeSection() {
             const container = document.getElementById('practice-content');
 
@@ -1662,15 +1674,204 @@
             if (practiceWords.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
-                        <div class="emoji">✍️</div>
-                        <p>请先输入字词，或积累一些错字后开始听写练习</p>
+                        <div class="emoji">📝</div>
+                        <p>请先输入字词，或积累一些错字后开始看字选拼音练习</p>
                     </div>
                 `;
                 return;
             }
 
-            // 显示听写练习界面
-            showDictationUI(container, practiceWords);
+            // 显示看字选拼音界面
+            showPinyinQuizUI(container, practiceWords);
+        }
+
+        // 看字选拼音界面
+        function showPinyinQuizUI(container, words) {
+            // 打乱顺序
+            const shuffledWords = [...words].sort(() => Math.random() - 0.5);
+            window.pinyinQuizQueue = shuffledWords;
+            window.pinyinQuizIndex = 0;
+            window.pinyinQuizScore = 0;
+
+            // 如果有错字集，提示用户
+            const isUsingMistakes = mistakes.length > 0;
+            const hintMessage = isUsingMistakes
+                ? `<p style="text-align: center; color: #667eea; font-weight: bold; margin-bottom: 15px;">🎯 正在练习错字集中的 ${words.length} 个字</p>`
+                : `<p style="text-align: center; color: #666; margin-bottom: 15px;">📝 正在练习 ${words.length} 个字词</p>`;
+
+            container.innerHTML = `
+                <div class="pinyin-quiz-container">
+                    ${hintMessage}
+
+                    <div class="dictation-progress" style="text-align: center; margin-bottom: 20px; padding: 15px; background: #f8f9ff; border-radius: 10px;">
+                        <div style="font-size: 1.2em; font-weight: bold; color: #667eea;">
+                            进度: <span id="pinyinQuizProgress">1 / ${words.length}</span>
+                        </div>
+                        <div style="margin-top: 10px;">
+                            <span style="color: #11998e;">✓ 正确: <span id="pinyinQuizCorrect">0</span></span>
+                            <span style="margin-left: 20px; color: #eb3349;">✗ 错误: <span id="pinyinQuizWrong">0</span></span>
+                        </div>
+                    </div>
+
+                    <div id="pinyinQuizGameArea" style="text-align: center; padding: 40px; background: linear-gradient(135deg, #f8f9ff 0%, #e8f0ff 100%); border-radius: 20px;">
+                        <div id="pinyinQuizChar" style="font-size: 6em; font-weight: bold; color: #667eea; margin-bottom: 30px; text-shadow: 2px 2px 4px rgba(0,0,0,0.1);">
+                            字
+                        </div>
+
+                        <p style="color: #666; margin-bottom: 20px;">这个字的拼音是？</p>
+
+                        <div id="pinyinQuizOptions" class="pinyin-quiz-options" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; max-width: 400px; margin: 0 auto;">
+                            <!-- 选项将在这里生成 -->
+                        </div>
+
+                        <button onclick="speakText(window.pinyinQuizQueue[window.pinyinQuizIndex])" style="margin-top: 30px; padding: 12px 25px; background: #f0f0f0; border: none; border-radius: 10px; cursor: pointer; font-size: 1em;">
+                            🔊 听发音提示
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            // 开始第一题
+            nextPinyinQuizQuestion();
+        }
+
+        // 下一题
+        function nextPinyinQuizQuestion() {
+            // 检查是否完成
+            if (window.pinyinQuizIndex >= window.pinyinQuizQueue.length) {
+                showPinyinQuizResult();
+                return;
+            }
+
+            const currentWord = window.pinyinQuizQueue[window.pinyinQuizIndex];
+            const correctPinyin = getPinyin(currentWord);
+
+            // 更新进度
+            document.getElementById('pinyinQuizProgress').textContent = `${window.pinyinQuizIndex + 1} / ${window.pinyinQuizQueue.length}`;
+
+            // 显示汉字
+            document.getElementById('pinyinQuizChar').textContent = currentWord;
+
+            // 生成选项（1个正确 + 3个错误）
+            const options = [correctPinyin];
+            const allPinyins = [
+                'bā', 'bá', 'bǎ', 'bà', 'pā', 'pá', 'pǎ', 'pà', 'mā', 'má', 'mǎ', 'mà',
+                'fā', 'fá', 'fǎ', 'fà', 'dā', 'dá', 'dǎ', 'dà', 'tā', 'tá', 'tǎ', 'tà',
+                'nā', 'ná', 'nǎ', 'nà', 'lā', 'lá', 'lǎ', 'là', 'gā', 'gá', 'gǎ', 'gà',
+                'kā', 'ká', 'kǎ', 'kà', 'hā', 'há', 'hǎ', 'hà', 'jī', 'jí', 'jǐ', 'jì',
+                'qī', 'qí', 'qǐ', 'qì', 'xī', 'xí', 'xǐ', 'xì', 'zhī', 'zhí', 'zhǐ', 'zhì',
+                'chī', 'chí', 'chǐ', 'chì', 'shī', 'shí', 'shǐ', 'shì', 'rī', 'rí', 'rǐ', 'rì',
+                'zā', 'zá', 'zǎ', 'zà', 'cā', 'cá', 'cǎ', 'cà', 'sā', 'sá', 'sǎ', 'sà',
+                'yā', 'yá', 'yǎ', 'yà', 'wā', 'wá', 'wǎ', 'wà', 'ē', 'é', 'ě', 'è',
+                'ō', 'ó', 'ǒ', 'ò', 'ū', 'ú', 'ǔ', 'ù', 'ǖ', 'ǘ', 'ǚ', 'ǜ'
+            ];
+
+            // 添加3个不同的错误选项
+            while (options.length < 4 && allPinyins.length > 0) {
+                const randomPinyin = allPinyins[Math.floor(Math.random() * allPinyins.length)];
+                if (!options.includes(randomPinyin) && randomPinyin !== correctPinyin) {
+                    options.push(randomPinyin);
+                }
+            }
+
+            // 打乱选项顺序
+            options.sort(() => Math.random() - 0.5);
+
+            // 生成选项按钮
+            const optionsContainer = document.getElementById('pinyinQuizOptions');
+            optionsContainer.innerHTML = options.map((pinyin, idx) => `
+                <button class="pinyin-option-btn" onclick="checkPinyinQuizAnswer('${pinyin}', '${correctPinyin}', ${idx}, this)"
+                    style="padding: 15px 25px; font-size: 1.5em; border: 3px solid #ddd; border-radius: 10px; background: white; cursor: pointer; transition: all 0.3s;">
+                    ${pinyin}
+                </button>
+            `).join('');
+        }
+
+        // 检查拼音答案
+        function checkPinyinQuizAnswer(selectedPinyin, correctPinyin, idx, button) {
+            // 禁用所有按钮
+            const allButtons = document.querySelectorAll('.pinyin-option-btn');
+            allButtons.forEach(btn => btn.disabled = true);
+
+            const currentWord = window.pinyinQuizQueue[window.pinyinQuizIndex];
+
+            if (selectedPinyin === correctPinyin) {
+                // 答对了
+                button.style.background = 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)';
+                button.style.color = 'white';
+                button.style.borderColor = '#11998e';
+                window.pinyinQuizScore++;
+                document.getElementById('pinyinQuizCorrect').textContent = window.pinyinQuizScore;
+
+                stats.totalPractice++;
+                stats.correctCount++;
+
+                // 如果这个字在错字集中，答对有概率移除
+                if (mistakes.find(m => (typeof m === 'object' ? m.text : m) === currentWord)) {
+                    if (Math.random() > 0.5) {
+                        removeFromMistakes(currentWord);
+                    }
+                }
+            } else {
+                // 答错了
+                button.style.background = 'linear-gradient(135deg, #eb3349 0%, #f45c43 100%)';
+                button.style.color = 'white';
+                button.style.borderColor = '#eb3349';
+
+                // 高亮正确答案
+                allButtons.forEach(btn => {
+                    if (btn.textContent.trim() === correctPinyin) {
+                        btn.style.background = 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)';
+                        btn.style.color = 'white';
+                    }
+                });
+
+                stats.totalPractice++;
+                addToMistakes(currentWord);
+
+                const wrongCount = window.pinyinQuizIndex - window.pinyinQuizScore + 1;
+                document.getElementById('pinyinQuizWrong').textContent = wrongCount;
+            }
+
+            saveStats();
+
+            // 1.5秒后下一题
+            setTimeout(() => {
+                window.pinyinQuizIndex++;
+                nextPinyinQuizQuestion();
+            }, 1500);
+        }
+
+        // 显示拼音测验结果
+        function showPinyinQuizResult() {
+            const container = document.getElementById('practice-content');
+            const total = window.pinyinQuizQueue.length;
+            const correct = window.pinyinQuizScore;
+            const wrong = total - correct;
+            const rate = Math.round((correct / total) * 100);
+
+            container.innerHTML = `
+                <div class="result-box" style="text-align: center; padding: 40px;">
+                    <h2 style="color: #667eea; margin-bottom: 30px;">🎉 练习完成！</h2>
+
+                    <div class="score" style="font-size: 4em; color: ${rate >= 80 ? '#11998e' : rate >= 60 ? '#f39c12' : '#eb3349'};">
+                        ${rate}%
+                    </div>
+
+                    <div class="message" style="font-size: 1.3em; color: #666; margin: 20px 0;">
+                        答对 ${correct} 题，答错 ${wrong} 题
+                    </div>
+
+                    <div style="display: flex; gap: 10px; justify-content: center; margin-top: 30px;">
+                        <button class="btn btn-primary" onclick="updatePracticeSection()" style="padding: 15px 35px; font-size: 1.2em;">
+                            🔄 再来一局
+                        </button>
+                        <button class="btn btn-secondary" onclick="showPinyinQuizUI(document.getElementById('practice-content'), window.pinyinQuizQueue)" style="padding: 15px 35px; font-size: 1.2em; background: #f0f0f0; color: #666;">
+                            ↺ 重练本组
+                        </button>
+                    </div>
+                </div>
+            `;
         }
 
         // 听写练习界面
