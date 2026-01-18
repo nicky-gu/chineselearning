@@ -1064,6 +1064,7 @@
             const data = {
                 mistakes: mistakes,
                 stats: stats,
+                currentChars: currentChars,  // 也保存当前学习的字词
                 version: 1,
                 updatedAt: new Date().toISOString()
             };
@@ -1206,7 +1207,8 @@
                 if (decryptedData) {
                     mistakes = decryptedData.mistakes || [];
                     stats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
-                    console.log('Cloud data loaded:', { mistakesCount: mistakes.length, stats });
+                    currentChars = decryptedData.currentChars || [];
+                    console.log('Cloud data loaded:', { mistakesCount: mistakes.length, stats, currentCharsCount: currentChars.length });
                 }
             }
 
@@ -1214,6 +1216,8 @@
             currentPin = pin;
             saveSession(pin);
             saveLocalData();
+            updateAddedWordsPreview();
+            updateAllSections();
             console.log('Existing user logged in:', { userId, hasPin: !!currentPin });
             showLoginMessage('<div class="success-message">登录成功！数据已同步</div>');
         }
@@ -1343,7 +1347,8 @@
                             if (decryptedData) {
                                 mistakes = decryptedData.mistakes || [];
                                 stats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
-                                console.log('Cloud data restored:', { mistakesCount: mistakes.length, stats });
+                                currentChars = decryptedData.currentChars || [];
+                                console.log('Cloud data restored:', { mistakesCount: mistakes.length, stats, currentCharsCount: currentChars.length });
                             }
                         } else {
                             console.log('No cloud data found, using local data');
@@ -1406,40 +1411,51 @@
 
         // 输入框中文输入法处理
         let isComposing = false;
+        let lastProcessedValue = '';
         const charInput = document.getElementById('charInput');
 
         charInput.addEventListener('compositionstart', () => {
             isComposing = true;
         });
 
-        charInput.addEventListener('compositionend', (e) => {
+        charInput.addEventListener('compositionend', () => {
             isComposing = false;
-            // 手动触发 input 处理
-            handleInputChange(e.target);
         });
 
         charInput.addEventListener('input', (e) => {
-            if (!isComposing) {
-                handleInputChange(e.target);
-            }
-        });
+            const input = e.target;
+            const currentValue = input.value;
 
-        function handleInputChange(input) {
+            // 避免重复处理相同的值
+            if (currentValue === lastProcessedValue) {
+                return;
+            }
+
+            // 正在输入法中，不处理
+            if (isComposing) {
+                lastProcessedValue = currentValue;
+                return;
+            }
+
+            // 过滤非法字符
             const selectionStart = input.selectionStart;
-            const originalValue = input.value;
-            // 只允许中文、空格、逗号、顿号
+            const originalValue = currentValue;
             const filteredValue = originalValue.replace(/[^\u4e00-\u9fa5,，、\s]/g, '');
 
             if (filteredValue !== originalValue) {
                 input.value = filteredValue;
                 const newCursorPos = Math.max(0, selectionStart - (originalValue.length - filteredValue.length));
                 input.setSelectionRange(newCursorPos, newCursorPos);
+                lastProcessedValue = filteredValue;
+            } else {
+                lastProcessedValue = currentValue;
             }
-        }
+        });
 
         // 监听回车键 - 触发添加（在非输入法状态下）
         charInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !isComposing) {
+                e.preventDefault();
                 addInput();
             }
         });
@@ -1477,6 +1493,7 @@
 
             // 清空输入框并聚焦
             input.value = '';
+            lastProcessedValue = '';  // 重置处理状态
             input.focus();
         }
 
@@ -1484,6 +1501,7 @@
         function clearInput() {
             const input = document.getElementById('charInput');
             input.value = '';
+            lastProcessedValue = '';  // 重置处理状态
             input.focus();
         }
 
