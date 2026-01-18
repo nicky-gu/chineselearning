@@ -1282,7 +1282,10 @@
         // 监听输入
         document.getElementById('charInput').addEventListener('input', (e) => {
             const input = e.target.value.replace(/[^\u4e00-\u9fa5\s,，、\n]/g, '');
-            e.target.value = input;
+            // 只有值真的被改变时才更新（避免光标重置）
+            if (input !== e.target.value) {
+                e.target.value = input;
+            }
             currentChars = [...new Set(input.split(/[\s,，、\n]+/).filter(s => s.trim()))];
             updateAllSections();
         });
