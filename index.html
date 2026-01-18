@@ -975,6 +975,11 @@
         const PIN_LENGTH = 8;
         const EMAIL_DOMAIN = 'example.com';
         const ERROR_NO_DATA = 'PGRST116';
+        const SESSION_EXPIRY_DAYS = 30;  // 会话有效期 30 天
+        const STORAGE_KEYS = {
+            PIN: 'hanzi_pin',
+            LAST_LOGIN: 'hanzi_last_login'
+        };
 
         // 状态变量
         let currentUser = null;
@@ -1187,6 +1192,7 @@
             await saveUserData(userId, pin);
             currentUser = authResult;
             currentPin = pin;
+            saveSession(pin);
             saveLocalData();
             showLoginMessage('<div class="success-message">注册成功！已创建云端备份</div>');
         }
@@ -1204,6 +1210,7 @@
 
             currentUser = authResult;
             currentPin = pin;
+            saveSession(pin);
             saveLocalData();
             showLoginMessage('<div class="success-message">登录成功！数据已同步</div>');
         }
@@ -1219,7 +1226,35 @@
 
             currentUser = null;
             currentPin = null;
+            clearSession();
             updateLoginUI();
+        }
+
+        // ---------- 会话持久化 ----------
+        function saveSession(pin) {
+            localStorage.setItem(STORAGE_KEYS.PIN, pin);
+            localStorage.setItem(STORAGE_KEYS.LAST_LOGIN, Date.now().toString());
+        }
+
+        function clearSession() {
+            localStorage.removeItem(STORAGE_KEYS.PIN);
+            localStorage.removeItem(STORAGE_KEYS.LAST_LOGIN);
+        }
+
+        function isSessionValid() {
+            const lastLogin = localStorage.getItem(STORAGE_KEYS.LAST_LOGIN);
+            if (!lastLogin) return false;
+
+            const daysSinceLogin = (Date.now() - parseInt(lastLogin)) / (1000 * 60 * 60 * 24);
+            return daysSinceLogin <= SESSION_EXPIRY_DAYS;
+        }
+
+        function getSavedPin() {
+            if (!isSessionValid()) {
+                clearSession();
+                return null;
+            }
+            return localStorage.getItem(STORAGE_KEYS.PIN);
         }
 
         // ---------- 数据同步函数 ----------
@@ -1271,10 +1306,45 @@
             localStorage.setItem('hanzi_stats', JSON.stringify(stats));
         }
 
-        function initCloudSync() {
+        async function initCloudSync() {
             if (!supabaseClient || SUPABASE_URL === 'YOUR_SUPABASE_URL') {
                 console.log('Supabase 未配置，云端同步功能不可用');
+                updateLoginUI();
+                return;
             }
+
+            try {
+                // 检查 Supabase Auth 的 session
+                const { data: { session } } = await supabaseClient.auth.getSession();
+
+                if (session) {
+                    const savedPin = getSavedPin();
+
+                    if (savedPin) {
+                        // 有有效的 session 和 PIN，恢复登录状态
+                        currentUser = { user: session.user, session: session };
+                        currentPin = savedPin;
+
+                        // 从云端加载最新数据
+                        const encryptedData = await loadUserData(session.user.id);
+                        if (encryptedData) {
+                            const decryptedData = decryptData(encryptedData, savedPin);
+                            if (decryptedData) {
+                                mistakes = decryptedData.mistakes || [];
+                                stats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
+                            }
+                        }
+
+                        console.log('会话已恢复，自动登录成功');
+                    } else {
+                        // 有 Supabase session 但没有 PIN（可能是过期了）
+                        await supabaseClient.auth.signOut();
+                    }
+                }
+            } catch (error) {
+                console.log('会话恢复失败:', error.message);
+            }
+
             updateLoginUI();
         }
 
