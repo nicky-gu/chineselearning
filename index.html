@@ -1442,7 +1442,8 @@
         }
 
         function saveLocalData() {
-            localStorage.setItem('hanzi_mistakes', JSON.stringify(mistakes));
+            localStorage.setItem('hanzi_dictation_mistakes', JSON.stringify(dictationMistakes));
+            localStorage.setItem('hanzi_sound_mistakes', JSON.stringify(soundMistakes));
             localStorage.setItem('hanzi_stats', JSON.stringify(stats));
         }
 
@@ -2292,7 +2293,7 @@
             `;
         }
 
-        // 检查拼音
+        // 检查拼音（旧功能，已不再使用）
         function checkPinyin(input, correctPinyin, text) {
             const cleanInput = input.value.toLowerCase()
                 .replace(/[āáǎà]/g, 'a').replace(/[ēéěè]/g, 'e')
@@ -2312,20 +2313,20 @@
                 input.classList.remove('wrong');
                 input.classList.add('correct');
                 stats.correctCount++;
-                // 如果之前在错字集，答对3次后移除
-                const mistakeIndex = mistakes.indexOf(text);
+                // 如果之前在看字选拼音错题集，答对3次后移除
+                const mistakeIndex = dictationMistakes.findIndex(m => typeof m === 'object' ? m.text === text : m === text);
                 if (mistakeIndex !== -1) {
                     const count = parseInt(input.dataset.correctCount || 0) + 1;
                     input.dataset.correctCount = count;
                     if (count >= 3) {
-                        removeFromMistakes(text);
+                        removeFromMistakes(text, 'dictation');
                         input.dataset.correctCount = 0;
                     }
                 }
             } else if (input.value.length > 0) {
                 input.classList.remove('correct');
                 input.classList.add('wrong');
-                addToMistakes(text);
+                addToMistakes(text, 'dictation');
             } else {
                 input.classList.remove('correct', 'wrong');
                 stats.totalPractice--;
