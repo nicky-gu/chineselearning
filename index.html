@@ -1049,6 +1049,7 @@
 
         // 听音选字游戏状态
         let gameQueue = [];
+        let gamePracticeWords = [];  // 保存当前练习的字词列表，用于生成选项
         let currentQuestion = null;
         let gameScore = 0;
         let gameTotal = 0;
@@ -1056,19 +1057,54 @@
 
         // ========== 云同步模块 ==========
 
-        // 常量配置
+        // ---------- 云同步配置常量 ----------
         const SUPABASE_URL = 'https://febjcxekwzuzyzzvudsj.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZlYmpjeGVrd3p1enl6enZ1ZHNqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2NzExNzYsImV4cCI6MjA4NDI0NzE3Nn0.igxKXfuiLWYJWJHOq5cYSjDMvtqBnQdmo20X0gyqMjc';
-        const MAX_ENCRYPTED_DATA_SIZE = 10 * 1024 * 1024;  // 10MB
+        const MAX_ENCRYPTED_DATA_SIZE = 10 * 1024 * 1024;
         const AUTO_SYNC_DELAY_MS = 3000;
         const PIN_LENGTH = 8;
         const EMAIL_DOMAIN = 'example.com';
         const ERROR_NO_DATA = 'PGRST116';
-        const SESSION_EXPIRY_DAYS = 30;  // 会话有效期 30 天
+        const SESSION_EXPIRY_DAYS = 30;
         const STORAGE_KEYS = {
             PIN: 'hanzi_pin',
             LAST_LOGIN: 'hanzi_last_login'
         };
+
+        // ---------- 练习类型常量 ----------
+        const PRACTICE_TYPES = {
+            DICTATION: 'dictation',  // 看字选拼音
+            SOUND: 'sound'           // 听音选字
+        };
+
+        // ---------- 时间配置常量 ----------
+        const TIMEOUTS = {
+            NEXT_QUESTION: 1500,
+            AUTO_PLAY: 300,
+            AUTO_SYNC: 3000
+        };
+
+        // ---------- 游戏配置常量 ----------
+        const GAME_CONFIG = {
+            MIN_WORDS_FOR_PRACTICE: 2,
+            MAX_OPTIONS: 4,
+            MAX_PINYIN_OPTIONS: 4
+        };
+
+        // ---------- UI 配置常量 ----------
+        const UI_CONFIG = {
+            COLORS: {
+                PRIMARY: '#667eea',
+                SECONDARY: '#764ba2',
+                SUCCESS: '#11998e',
+                ERROR: '#eb3349',
+                WARNING: '#f59e0b'
+            },
+            STORAGE_PREFIX: 'hanzi_'
+        };
+
+        // ---------- 数据版本常量 ----------
+        const DATA_VERSION = 2;
 
         // 状态变量
         let currentUser = null;
@@ -1109,6 +1145,114 @@
             } catch (e) {
                 return null;
             }
+        }
+
+        // ---------- 数据合并函数 ----------
+        // 合并云端数据到本地数据，取最大值避免数据丢失
+        function mergeCloudDataWithLocal(decryptedData) {
+            if (!decryptedData) return false;
+
+            let merged = false;
+
+            // 合并错题数据
+            if (decryptedData.version >= DATA_VERSION) {
+                // 新版本数据格式
+                if (decryptedData.dictationMistakes && decryptedData.dictationMistakes.length > 0) {
+                    const mergedDictation = mergeMistakeArrays(dictationMistakes, decryptedData.dictationMistakes);
+                    if (mergedDictation.length > dictationMistakes.length) {
+                        dictationMistakes = mergedDictation;
+                        merged = true;
+                    }
+                }
+
+                if (decryptedData.soundMistakes && decryptedData.soundMistakes.length > 0) {
+                    const mergedSound = mergeMistakeArrays(soundMistakes, decryptedData.soundMistakes);
+                    if (mergedSound.length > soundMistakes.length) {
+                        soundMistakes = mergedSound;
+                        merged = true;
+                    }
+                }
+            } else {
+                // 旧版本数据，迁移到新结构
+                const oldMistakesData = decryptedData.mistakes || [];
+                oldMistakesData.forEach(m => {
+                    const text = typeof m === 'object' ? m.text : m;
+                    const count = typeof m === 'object' ? m.count : 1;
+                    const timestamp = new Date().toISOString();
+                    const existing = dictationMistakes.find(item => item.text === text);
+                    if (existing) {
+                        existing.count = Math.max(existing.count, count);
+                        existing.lastWrong = timestamp;
+                    } else {
+                        dictationMistakes.push({ text, count, firstWrong: timestamp, lastWrong: timestamp });
+                    }
+                });
+                if (oldMistakesData.length > 0) merged = true;
+            }
+
+            // 合并统计数据（取最大值）
+            if (decryptedData.stats) {
+                const cloudStats = decryptedData.stats;
+                stats.totalLearned = Math.max(stats.totalLearned || 0, cloudStats.totalLearned || 0);
+                stats.totalPractice = Math.max(stats.totalPractice || 0, cloudStats.totalPractice || 0);
+                stats.correctCount = Math.max(stats.correctCount || 0, cloudStats.correctCount || 0);
+
+                // 合并已学字词列表
+                if (cloudStats.learnedWords && cloudStats.learnedWords.length > 0) {
+                    if (!stats.learnedWords) stats.learnedWords = [];
+                    cloudStats.learnedWords.forEach(word => {
+                        if (!stats.learnedWords.includes(word)) {
+                            stats.learnedWords.push(word);
+                        }
+                    });
+                }
+
+                // 最后练习时间取最新的
+                if (cloudStats.lastPractice) {
+                    const localTime = stats.lastPractice ? new Date(stats.lastPractice).getTime() : 0;
+                    const cloudTime = new Date(cloudStats.lastPractice).getTime();
+                    if (cloudTime > localTime) {
+                        stats.lastPractice = cloudStats.lastPractice;
+                    }
+                }
+                merged = true;
+            }
+
+            // 合并当前学习字词
+            if (decryptedData.currentChars && decryptedData.currentChars.length > 0) {
+                currentChars = decryptedData.currentChars;
+                merged = true;
+            }
+
+            return merged;
+        }
+
+        // 合并两个错题数组
+        function mergeMistakeArrays(local, cloud) {
+            const result = [...local];
+
+            cloud.forEach(cloudItem => {
+                const cloudText = typeof cloudItem === 'object' ? cloudItem.text : cloudItem;
+                const existing = result.find(item => {
+                    const itemText = typeof item === 'object' ? item.text : item;
+                    return itemText === cloudText;
+                });
+
+                if (existing) {
+                    if (typeof existing === 'object' && typeof cloudItem === 'object') {
+                        existing.count = Math.max(existing.count || 1, cloudItem.count || 1);
+                        existing.lastWrong = cloudItem.lastWrong || existing.lastWrong;
+                    }
+                } else {
+                    if (typeof cloudItem === 'object') {
+                        result.push(cloudItem);
+                    } else {
+                        result.push({ text: cloudItem, count: 1, firstWrong: new Date().toISOString(), lastWrong: new Date().toISOString() });
+                    }
+                }
+            });
+
+            return result;
         }
 
         // ---------- 认证函数 ----------
@@ -1257,20 +1401,26 @@
                 const { data: { session } } = await supabaseClient.auth.getSession();
                 const expectedEmail = `pin${pin}@${EMAIL_DOMAIN}`;
 
-                // 如果有session但邮箱不匹配，先登出
+                // 如果有session但邮箱不匹配，先登出并清空本地数据
                 if (session && session.user.email !== expectedEmail) {
-                    console.log('Session email mismatch, signing out...');
+                    console.log('Session email mismatch, signing out and clearing local data...');
                     await supabaseClient.auth.signOut();
-                    // 清空本地状态
-                    currentUser = null;
-                    currentPin = null;
+                    // 清空localStorage中的所有学习数据
+                    localStorage.removeItem('hanzi_dictation_mistakes');
+                    localStorage.removeItem('hanzi_sound_mistakes');
+                    localStorage.removeItem('hanzi_stats');
+                    localStorage.removeItem('hanzi_mistakes'); // 旧格式
+                    localStorage.removeItem('hanzi_current_chars');
                     localStorage.removeItem(STORAGE_KEYS.PIN);
                     localStorage.removeItem(STORAGE_KEYS.LAST_LOGIN);
-                    // 清空学习数据
+                    // 清空本地状态变量
+                    currentUser = null;
+                    currentPin = null;
                     dictationMistakes = [];
                     soundMistakes = [];
                     stats = { totalLearned: 0, totalPractice: 0, correctCount: 0 };
                     currentChars = [];
+                    console.log('Local data cleared, ready for new PIN login');
                 }
 
                 const authResult = await authenticateWithPin(pin);
@@ -1316,48 +1466,19 @@
             if (encryptedData) {
                 const decryptedData = decryptData(encryptedData, pin);
                 if (decryptedData) {
-                    // 兼容版本1和版本2的数据格式
-                    if (decryptedData.version >= 2) {
-                        dictationMistakes = decryptedData.dictationMistakes || [];
-                        soundMistakes = decryptedData.soundMistakes || [];
-                    } else {
-                        // 旧版本数据，迁移到新结构
-                        const oldMistakesData = decryptedData.mistakes || [];
-                        oldMistakesData.forEach(m => {
-                            const text = typeof m === 'object' ? m.text : m;
-                            dictationMistakes.push({ text: text, count: typeof m === 'object' ? m.count : 1, firstWrong: new Date().toISOString(), lastWrong: new Date().toISOString() });
+                    const merged = mergeCloudDataWithLocal(decryptedData);
+                    if (merged) {
+                        saveDictationMistakes();
+                        saveSoundMistakes();
+                        saveLocalData();
+                        autoSync();
+                        console.log('Cloud data loaded and merged:', {
+                            dictationMistakes: dictationMistakes.length,
+                            soundMistakes: soundMistakes.length,
+                            stats,
+                            currentCharsCount: currentChars.length
                         });
                     }
-                    // 合并统计数据：取本地和云端的最大值
-                    const cloudStats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
-                    stats.totalLearned = Math.max(stats.totalLearned || 0, cloudStats.totalLearned || 0);
-                    stats.totalPractice = Math.max(stats.totalPractice || 0, cloudStats.totalPractice || 0);
-                    stats.correctCount = Math.max(stats.correctCount || 0, cloudStats.correctCount || 0);
-                    // 合并已学字词列表
-                    if (cloudStats.learnedWords && cloudStats.learnedWords.length > 0) {
-                        if (!stats.learnedWords) stats.learnedWords = [];
-                        cloudStats.learnedWords.forEach(word => {
-                            if (!stats.learnedWords.includes(word)) {
-                                stats.learnedWords.push(word);
-                            }
-                        });
-                    }
-                    // 最后练习时间取最新的
-                    if (cloudStats.lastPractice) {
-                        const localTime = stats.lastPractice ? new Date(stats.lastPractice).getTime() : 0;
-                        const cloudTime = new Date(cloudStats.lastPractice).getTime();
-                        if (cloudTime > localTime) {
-                            stats.lastPractice = cloudStats.lastPractice;
-                        }
-                    }
-
-                    currentChars = decryptedData.currentChars || [];
-                    saveDictationMistakes();
-                    saveSoundMistakes();
-                    // 保存合并后的统计数据并同步到云端
-                    saveLocalData();
-                    autoSync();
-                    console.log('Cloud data loaded:', { dictationMistakes: dictationMistakes.length, soundMistakes: soundMistakes.length, stats, currentCharsCount: currentChars.length });
                 }
             }
 
@@ -1494,48 +1615,19 @@
                         if (encryptedData) {
                             const decryptedData = decryptData(encryptedData, savedPin);
                             if (decryptedData) {
-                                // 兼容版本1和版本2的数据格式
-                                if (decryptedData.version >= 2) {
-                                    dictationMistakes = decryptedData.dictationMistakes || [];
-                                    soundMistakes = decryptedData.soundMistakes || [];
-                                } else {
-                                    // 旧版本数据，迁移到新结构
-                                    const oldMistakesData = decryptedData.mistakes || [];
-                                    oldMistakesData.forEach(m => {
-                                        const text = typeof m === 'object' ? m.text : m;
-                                        dictationMistakes.push({ text: text, count: typeof m === 'object' ? m.count : 1, firstWrong: new Date().toISOString(), lastWrong: new Date().toISOString() });
+                                const merged = mergeCloudDataWithLocal(decryptedData);
+                                if (merged) {
+                                    saveDictationMistakes();
+                                    saveSoundMistakes();
+                                    saveLocalData();
+                                    autoSync();
+                                    console.log('Cloud data restored:', {
+                                        dictationMistakes: dictationMistakes.length,
+                                        soundMistakes: soundMistakes.length,
+                                        stats,
+                                        currentCharsCount: currentChars.length
                                     });
                                 }
-                                // 合并统计数据：取本地和云端的最大值
-                                const cloudStats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
-                                stats.totalLearned = Math.max(stats.totalLearned || 0, cloudStats.totalLearned || 0);
-                                stats.totalPractice = Math.max(stats.totalPractice || 0, cloudStats.totalPractice || 0);
-                                stats.correctCount = Math.max(stats.correctCount || 0, cloudStats.correctCount || 0);
-                                // 合并已学字词列表
-                                if (cloudStats.learnedWords && cloudStats.learnedWords.length > 0) {
-                                    if (!stats.learnedWords) stats.learnedWords = [];
-                                    cloudStats.learnedWords.forEach(word => {
-                                        if (!stats.learnedWords.includes(word)) {
-                                            stats.learnedWords.push(word);
-                                        }
-                                    });
-                                }
-                                // 最后练习时间取最新的
-                                if (cloudStats.lastPractice) {
-                                    const localTime = stats.lastPractice ? new Date(stats.lastPractice).getTime() : 0;
-                                    const cloudTime = new Date(cloudStats.lastPractice).getTime();
-                                    if (cloudTime > localTime) {
-                                        stats.lastPractice = cloudStats.lastPractice;
-                                    }
-                                }
-
-                                currentChars = decryptedData.currentChars || [];
-                                saveDictationMistakes();
-                                saveSoundMistakes();
-                                // 保存合并后的统计数据并同步到云端
-                                saveLocalData();
-                                autoSync();
-                                console.log('Cloud data restored:', { dictationMistakes: dictationMistakes.length, soundMistakes: soundMistakes.length, stats, currentCharsCount: currentChars.length });
                             }
                         } else {
                             console.log('No cloud data found, using local data');
@@ -1797,7 +1889,8 @@
             } else {
                 saveDictationMistakes();
             }
-            updateMistakesSection();
+            updateDictationMistakesSection();
+            updateSoundMistakesSection();
             updateStatsSection();
         }
 
@@ -1807,7 +1900,8 @@
                 soundMistakes = [];
                 saveDictationMistakes();
                 saveSoundMistakes();
-                updateMistakesSection();
+                updateDictationMistakesSection();
+                updateSoundMistakesSection();
                 updateStatsSection();
             }
         }
@@ -1818,6 +1912,100 @@
                 saveStats();
                 updateStatsSection();
             }
+        }
+
+        // ========== 错题集通用辅助函数 ==========
+        // 配置对象：定义两种练习类型的参数
+        const MISTAKE_CONFIG = {
+            dictation: {
+                array: () => dictationMistakes,
+                checkboxClass: 'dictation-mistake-checkbox',
+                selectAllId: 'selectAllDictationMistakes',
+                countId: 'dictationSelectedCount',
+                minWords: 1,
+                tabId: 'practice',
+                sectionId: 'practice-section',
+                contentId: 'practice-content',
+                startPractice: showPinyinQuizUI
+            },
+            sound: {
+                array: () => soundMistakes,
+                checkboxClass: 'sound-mistake-checkbox',
+                selectAllId: 'selectAllSoundMistakes',
+                countId: 'soundSelectedCount',
+                minWords: GAME_CONFIG.MIN_WORDS_FOR_PRACTICE,
+                tabId: 'sound',
+                sectionId: 'sound-section',
+                contentId: 'sound-content',
+                startPractice: startGameWithWords
+            }
+        };
+
+        // 通用全选/取消全选函数
+        function toggleAllMistakes(type, checked) {
+            const config = MISTAKE_CONFIG[type];
+            if (!config) return;
+
+            const checkboxes = document.querySelectorAll(`.${config.checkboxClass}`);
+            checkboxes.forEach(cb => cb.checked = checked);
+            updateMistakeSelectedCount(type);
+        }
+
+        // 通用更新已选数量函数
+        function updateMistakeSelectedCount(type) {
+            const config = MISTAKE_CONFIG[type];
+            if (!config) return;
+
+            const checkboxes = document.querySelectorAll(`.${config.checkboxClass}:checked`);
+            const count = checkboxes.length;
+            const countSpan = document.getElementById(config.countId);
+            if (countSpan) countSpan.textContent = `已选: ${count}`;
+
+            // 更新全选复选框状态
+            const allCheckboxes = document.querySelectorAll(`.${config.checkboxClass}`);
+            const selectAll = document.getElementById(config.selectAllId);
+            if (selectAll) {
+                selectAll.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+                selectAll.indeterminate = count > 0 && count < allCheckboxes.length;
+            }
+        }
+
+        // 通用练习错题函数
+        function practiceMistakes(type, selection = 'all') {
+            const config = MISTAKE_CONFIG[type];
+            if (!config) {
+                alert('未知的练习类型');
+                return;
+            }
+
+            const mistakes = config.array();
+            let words;
+
+            if (selection === 'all') {
+                words = mistakes.map(m => typeof m === 'object' ? m.text : m);
+                if (words.length < config.minWords) {
+                    const typeName = type === 'dictation' ? '看字选拼音' : '听音选字';
+                    alert(type === 'dictation' ? '暂无错题可练习' : `请至少有 ${config.minWords} 个错题才能开始练习`);
+                    return;
+                }
+            } else {
+                const checkboxes = document.querySelectorAll(`.${config.checkboxClass}:checked`);
+                words = Array.from(checkboxes).map(cb => cb.value);
+                if (words.length < config.minWords) {
+                    alert(type === 'dictation' ? '请至少选择 1 个字词进行练习' : `请至少选择 ${config.minWords} 个字词进行练习`);
+                    return;
+                }
+            }
+
+            // 切换到对应的练习标签
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.practice-section').forEach(s => s.classList.remove('active'));
+            document.querySelector(`[data-tab="${config.tabId}"]`).classList.add('active');
+            document.getElementById(config.sectionId).classList.add('active');
+
+            // 开始练习
+            const container = document.getElementById(config.contentId);
+            config.startPractice(container, words);
         }
 
         // 更新练习本 - 看字选拼音模式
@@ -1919,24 +2107,22 @@
             `).join('');
         }
 
-        // 生成有迷惑性的拼音选项
-        function generateConfusingOptions(correctPinyin) {
-            const options = [correctPinyin];
+        // ========== 拼音选项生成辅助函数 ==========
+        // 解析拼音为声母、韵母、声调
+        function parsePinyin(pinyin) {
+            const toneMap = {
+                'ā': 'a', 'á': 'a', 'ǎ': 'a', 'à': 'a',
+                'ē': 'e', 'é': 'e', 'ě': 'e', 'è': 'e',
+                'ī': 'i', 'í': 'i', 'ǐ': 'i', 'ì': 'i',
+                'ō': 'o', 'ó': 'o', 'ǒ': 'o', 'ò': 'o',
+                'ū': 'u', 'ú': 'u', 'ǔ': 'u', 'ù': 'u',
+                'ǖ': 'v', 'ǘ': 'v', 'ǚ': 'v', 'ǜ': 'v'
+            };
 
-            // 提取拼音的各个部分
-            const pinyinWithoutTone = correctPinyin.replace(/[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/g, (match) => {
-                const toneMap = {
-                    'ā': 'a', 'á': 'a', 'ǎ': 'a', 'à': 'a',
-                    'ē': 'e', 'é': 'e', 'ě': 'e', 'è': 'e',
-                    'ī': 'i', 'í': 'i', 'ǐ': 'i', 'ì': 'i',
-                    'ō': 'o', 'ó': 'o', 'ǒ': 'o', 'ò': 'o',
-                    'ū': 'u', 'ú': 'u', 'ǔ': 'u', 'ù': 'u',
-                    'ǖ': 'v', 'ǘ': 'v', 'ǚ': 'v', 'ǜ': 'v'
-                };
-                return toneMap[match] || match;
-            });
+            // 去除声调，获取基础拼音
+            const pinyinWithoutTone = pinyin.replace(/[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/g, (match) => toneMap[match] || match);
 
-            // 获取声母和韵母
+            // 提取声母和韵母
             let initial = '';
             let final = pinyinWithoutTone;
             for (let i = 0; i < pinyinWithoutTone.length; i++) {
@@ -1947,97 +2133,116 @@
                 }
             }
 
-            // 生成不同声调的选项
-            const tones = ['ā', 'á', 'ǎ', 'à', 'ē', 'é', 'ě', 'è', 'ī', 'í', 'ǐ', 'ì',
-                           'ō', 'ó', 'ǒ', 'ò', 'ū', 'ú', 'ǔ', 'ù', 'ǖ', 'ǘ', 'ǚ', 'ǜ',
-                           'a', 'e', 'i', 'o', 'u', 'v'];
-            const toneNum = ['ā', 'á', 'ǎ', 'à'].includes(correctPinyin[correctPinyin.length - 1]) ? correctPinyin[correctPinyin.length - 1] : '';
+            // 获取声调
+            const tone = ['ā', 'á', 'ǎ', 'à'].includes(pinyin[pinyin.length - 1]) ? pinyin[pinyin.length - 1] : '';
 
-            // 尝试生成不同声调
-            for (let tone of ['ā', 'á', 'ǎ', 'à']) {
-                if (tone !== toneNum) {
-                    const similarPinyin = pinyinWithoutTone.slice(0, -1) + tone;
-                    if (similarPinyin !== correctPinyin && !options.includes(similarPinyin)) {
-                        options.push(similarPinyin);
-                        if (options.length >= 4) break;
+            return { initial, final, base: pinyinWithoutTone, tone };
+        }
+
+        // 生成声调变化选项
+        function addToneVariations(options, basePinyin, currentTone, correctPinyin) {
+            for (const tone of ['ā', 'á', 'ǎ', 'à']) {
+                if (tone !== currentTone && options.length < GAME_CONFIG.MAX_PINYIN_OPTIONS) {
+                    const variant = basePinyin.slice(0, -1) + tone;
+                    if (variant !== correctPinyin && !options.includes(variant)) {
+                        options.push(variant);
                     }
                 }
             }
+        }
 
-            // 如果还不够，添加相似声母的选项
-            if (options.length < 4) {
-                const similarInitials = {
-                    'b': ['p', 'm'], 'p': ['b', 'm'], 'm': ['b', 'p'],
-                    'd': ['t', 'n'], 't': ['d', 'n'], 'n': ['d', 't', 'l'], 'l': ['n', 't'],
-                    'g': ['k', 'h'], 'k': ['g', 'h'], 'h': ['g', 'k'],
-                    'j': ['q', 'x'], 'q': ['j', 'x'], 'x': ['j', 'q'],
-                    'zh': ['ch', 'sh'], 'ch': ['zh', 'sh'], 'sh': ['zh', 'ch'],
-                    'z': ['c', 's'], 'c': ['z', 's'], 's': ['z', 'c'],
-                    'r': ['l', 'n'],
-                    'f': ['h'], 'w': [''], 'y': ['']
-                };
+        // 相似声母映射
+        const SIMILAR_INITIALS = {
+            'b': ['p', 'm'], 'p': ['b', 'm'], 'm': ['b', 'p'],
+            'd': ['t', 'n'], 't': ['d', 'n'], 'n': ['d', 't', 'l'], 'l': ['n', 't'],
+            'g': ['k', 'h'], 'k': ['g', 'h'], 'h': ['g', 'k'],
+            'j': ['q', 'x'], 'q': ['j', 'x'], 'x': ['j', 'q'],
+            'zh': ['ch', 'sh'], 'ch': ['zh', 'sh'], 'sh': ['zh', 'ch'],
+            'z': ['c', 's'], 'c': ['z', 's'], 's': ['z', 'c'],
+            'r': ['l', 'n'],
+            'f': ['h'], 'w': [''], 'y': ['']
+        };
 
-                if (initial && similarInitials[initial]) {
-                    for (let simInitial of similarInitials[initial]) {
-                        const similarPinyin = simInitial + final;
-                        if (similarPinyin !== correctPinyin && similarPinyin.length > 1 && !options.includes(similarPinyin)) {
-                            options.push(similarPinyin);
-                            if (options.length >= 4) break;
-                        }
-                    }
+        // 相似韵母映射
+        const SIMILAR_FINALS = {
+            'a': ['e', 'o', 'u'], 'e': ['a', 'o', 'u'], 'i': ['u', 'v'],
+            'o': ['a', 'e', 'u'], 'u': ['a', 'o', 'i'], 'v': ['i', 'u'],
+            'ai': ['ei', 'ao'], 'ei': ['ai', 'ui'], 'ao': ['ou', 'ai'],
+            'ou': ['iu', 'ao'], 'an': ['en', 'ang'], 'en': ['an', 'eng'],
+            'ang': ['an', 'eng'], 'eng': ['en', 'ang'], 'ia': ['ua', 'ie'],
+            'ie': ['ue', 'ia'], 'ua': ['ia', 'uo'], 'uo': ['ou', 'ua'],
+            'iu': ['ou', 'ui'], 'ui': ['ei', 'iu']
+        };
+
+        // 生成相似声母选项
+        function addInitialVariations(options, initial, final, tone, correctPinyin) {
+            if (!initial || !SIMILAR_INITIALS[initial] || options.length >= GAME_CONFIG.MAX_PINYIN_OPTIONS) return;
+
+            for (const simInitial of SIMILAR_INITIALS[initial]) {
+                if (options.length >= GAME_CONFIG.MAX_PINYIN_OPTIONS) break;
+                const variant = simInitial + final + tone;
+                if (variant !== correctPinyin && variant.length > 1 && !options.includes(variant)) {
+                    options.push(variant);
                 }
             }
+        }
 
-            // 如果还不够，使用相似韵母
-            if (options.length < 4) {
-                const similarFinals = {
-                    'a': ['e', 'o', 'u'],
-                    'e': ['a', 'o', 'u'],
-                    'i': ['u', 'v'],
-                    'o': ['a', 'e', 'u'],
-                    'u': ['a', 'o', 'i'],
-                    'v': ['i', 'u'],
-                    'ai': ['ei', 'ao'],
-                    'ei': ['ai', 'ui'],
-                    'ao': ['ou', 'ai'],
-                    'ou': ['iu', 'ao'],
-                    'an': ['en', 'ang'],
-                    'en': ['an', 'eng'],
-                    'ang': ['an', 'eng'],
-                    'eng': ['en', 'ang'],
-                    'ia': ['ua', 'ie'],
-                    'ie': ['ue', 'ia'],
-                    'ua': ['ia', 'uo'],
-                    'uo': ['ou', 'ua'],
-                    'iu': ['ou', 'ui'],
-                    'ui': ['ei', 'iu']
-                };
+        // 生成相似韵母选项
+        function addFinalVariations(options, initial, final, tone, correctPinyin) {
+            if (!final || !SIMILAR_FINALS[final] || options.length >= GAME_CONFIG.MAX_PINYIN_OPTIONS) return;
 
-                if (final && similarFinals[final]) {
-                    for (let simFinal of similarFinals[final]) {
-                        const similarPinyin = initial + simFinal;
-                        if (similarPinyin !== correctPinyin && similarPinyin.length > 1 && !options.includes(similarPinyin)) {
-                            options.push(similarPinyin);
-                            if (options.length >= 4) break;
-                        }
-                    }
+            for (const simFinal of SIMILAR_FINALS[final]) {
+                if (options.length >= GAME_CONFIG.MAX_PINYIN_OPTIONS) break;
+                const variant = initial + simFinal + tone;
+                if (variant !== correctPinyin && variant.length > 1 && !options.includes(variant)) {
+                    options.push(variant);
                 }
             }
+        }
 
-            // 如果仍然不够4个，用随机拼音补充
-            while (options.length < 4) {
-                const allPinyins = ['bā', 'bá', 'bǎ', 'bà', 'pā', 'pá', 'pǎ', 'pà', 'mā', 'má', 'mǎ', 'mà',
-                    'fā', 'fá', 'fǎ', 'fà', 'dā', 'dá', 'dǎ', 'dà', 'tā', 'tá', 'tǎ', 'tà',
-                    'nā', 'ná', 'nǎ', 'nà', 'lā', 'lá', 'lǎ', 'là', 'gā', 'gá', 'gǎ', 'gà',
-                    'kā', 'ká', 'kǎ', 'kà', 'hā', 'há', 'hǎ', 'hà', 'jī', 'jí', 'jǐ', 'jì',
-                    'qī', 'qí', 'qǐ', 'qì', 'xī', 'xí', 'xǐ', 'xì', 'zhī', 'zhí', 'zhǐ', 'zhì',
-                    'chī', 'chí', 'chǐ', 'chì', 'shī', 'shí', 'shǐ', 'shì', 'rī', 'rí', 'rǐ', 'rì',
-                    'zā', 'zá', 'zǎ', 'zà', 'cā', 'cá', 'cǎ', 'cà', 'sā', 'sá', 'sǎ', 'sà',
-                    'yā', 'yá', 'yǎ', 'yà', 'wā', 'wá', 'wǎ', 'wà'];
-                const randomPinyin = allPinyins[Math.floor(Math.random() * allPinyins.length)];
+        // 随机拼音列表（用于填充不足的选项）
+        const RANDOM_PINYINS = [
+            'bā', 'bá', 'bǎ', 'bà', 'pā', 'pá', 'pǎ', 'pà', 'mā', 'má', 'mǎ', 'mà',
+            'fā', 'fá', 'fǎ', 'fà', 'dā', 'dá', 'dǎ', 'dà', 'tā', 'tá', 'tǎ', 'tà',
+            'nā', 'ná', 'nǎ', 'nà', 'lā', 'lá', 'lǎ', 'là', 'gā', 'gá', 'gǎ', 'gà',
+            'kā', 'ká', 'kǎ', 'kà', 'hā', 'há', 'hǎ', 'hà', 'jī', 'jí', 'jǐ', 'jì',
+            'qī', 'qí', 'qǐ', 'qì', 'xī', 'xí', 'xǐ', 'xì', 'zhī', 'zhí', 'zhǐ', 'zhì',
+            'chī', 'chí', 'chǐ', 'chì', 'shī', 'shí', 'shǐ', 'shì', 'rī', 'rí', 'rǐ', 'rì',
+            'zā', 'zá', 'zǎ', 'zà', 'cā', 'cá', 'cǎ', 'cà', 'sā', 'sá', 'sǎ', 'sà',
+            'yā', 'yá', 'yǎ', 'yà', 'wā', 'wá', 'wǎ', 'wà'
+        ];
+
+        // 填充随机拼音选项
+        function fillRandomOptions(options, correctPinyin) {
+            while (options.length < GAME_CONFIG.MAX_PINYIN_OPTIONS) {
+                const randomPinyin = RANDOM_PINYINS[Math.floor(Math.random() * RANDOM_PINYINS.length)];
                 if (!options.includes(randomPinyin) && randomPinyin !== correctPinyin) {
                     options.push(randomPinyin);
                 }
+            }
+        }
+
+        // 生成有迷惑性的拼音选项（主函数）
+        function generateConfusingOptions(correctPinyin) {
+            const options = [correctPinyin];
+            const { initial, final, base, tone } = parsePinyin(correctPinyin);
+
+            // 策略1: 生成声调变化
+            addToneVariations(options, base, tone, correctPinyin);
+
+            // 策略2: 生成相似声母
+            if (options.length < GAME_CONFIG.MAX_PINYIN_OPTIONS) {
+                addInitialVariations(options, initial, final, tone, correctPinyin);
+            }
+
+            // 策略3: 生成相似韵母
+            if (options.length < GAME_CONFIG.MAX_PINYIN_OPTIONS) {
+                addFinalVariations(options, initial, final, tone, correctPinyin);
+            }
+
+            // 策略4: 随机拼音填充
+            if (options.length < GAME_CONFIG.MAX_PINYIN_OPTIONS) {
+                fillRandomOptions(options, correctPinyin);
             }
 
             return options;
@@ -2467,6 +2672,8 @@
 
         // 使用指定字词开始游戏
         function startGameWithWords(words) {
+            // 保存练习的字词列表，用于生成选项
+            gamePracticeWords = [...words];
             // 创建游戏队列，每个字/词组都会被问到
             gameQueue = [...words].sort(() => Math.random() - 0.5);
             gameScore = 0;
@@ -2486,16 +2693,17 @@
                         <div class="score">${rate}%</div>
                         <div class="message">答对 ${gameScore} / ${gameTotal} 题</div>
                         <button class="btn btn-primary" onclick="updateSoundSection()">🔄 再来一局</button>
-                        ${soundMistakes.length > 0 ? '<button class="btn btn-primary" onclick="practiceMistakes()">📝 练习错题</button>' : ''}
+                        ${soundMistakes.length > 0 ? '<button class="btn btn-primary" onclick="practiceSoundGameMistakes()">📝 练习错题</button>' : ''}
                     </div>
                 `;
                 return;
             }
 
             currentQuestion = gameQueue.pop();
-            const allOptions = [...currentChars.length >= 2 ? currentChars : soundMistakes.map(m => typeof m === 'object' ? m.text : m)];
+            // 使用当前练习的字词列表生成选项
+            const allOptions = gamePracticeWords;
 
-            // 生成选项
+            // 生成选项（最多4个或所有选项）
             let options = [currentQuestion];
             while (options.length < 4 && options.length < allOptions.length) {
                 const randomOption = allOptions[Math.floor(Math.random() * allOptions.length)];
@@ -2572,34 +2780,50 @@
             saveStats();
 
             // 1.5秒后下一题
-            setTimeout(() => startGame(), 1500);
+            setTimeout(() => startGame(), TIMEOUTS.NEXT_QUESTION);
         }
 
-        function practiceMistakes() {
+        function practiceSoundGameMistakes() {
             // 直接练习听音错题
             practiceAllSoundMistakes();
         }
 
-        // 更新看字选拼音错题集
-        function updateDictationMistakesSection() {
-            const container = document.getElementById('mistakes-pinyin-content');
+        // ========== 通用错题集渲染函数 ==========
+        // 渲染错题集（支持看字选拼音和听音选字两种类型）
+        function renderMistakesSection(type) {
+            const config = MISTAKE_CONFIG[type];
+            if (!config) return;
 
-            if (dictationMistakes.length === 0) {
+            const container = document.getElementById(
+                type === 'dictation' ? 'mistakes-pinyin-content' : 'mistakes-sound-content'
+            );
+            const mistakes = config.array();
+
+            if (mistakes.length === 0) {
+                const emptyMsg = type === 'dictation'
+                    ? '暂时没有看字选拼音错题，继续加油！'
+                    : '暂时没有听音选字错题，继续加油！';
                 container.innerHTML = `
                     <div class="empty-state">
                         <div class="emoji">✨</div>
-                        <p>暂时没有看字选拼音错题，继续加油！</p>
+                        <p>${emptyMsg}</p>
                     </div>
                 `;
                 return;
             }
 
             // 按错误次数排序
-            const sortedMistakes = [...dictationMistakes].sort((a, b) => {
+            const sortedMistakes = [...mistakes].sort((a, b) => {
                 const countA = typeof a === 'object' ? a.count : 1;
                 const countB = typeof b === 'object' ? b.count : 1;
                 return countB - countA;
             });
+
+            const color = type === 'dictation' ? '#667eea' : '#764ba2';
+            const gradient = type === 'dictation'
+                ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                : 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)';
+            const typeName = type === 'dictation' ? '看字选拼音' : '听音选字';
 
             let html = '';
 
@@ -2608,16 +2832,16 @@
                 <div style="background: #f8f9ff; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                            <input type="checkbox" id="selectAllDictationMistakes" onchange="toggleAllDictationMistakes(this.checked)" style="width: 18px; height: 18px; cursor: pointer;">
-                            <span style="font-weight: bold; color: #667eea;">全选 (${dictationMistakes.length} 个)</span>
+                            <input type="checkbox" id="${config.selectAllId}" onchange="toggleAll${typeName === '看字选拼音' ? 'Dictation' : 'Sound'}Mistakes(this.checked)" style="width: 18px; height: 18px; cursor: pointer;">
+                            <span style="font-weight: bold; color: ${color};">全选 (${mistakes.length} 个)</span>
                         </label>
-                        <span id="dictationSelectedCount" style="color: #666;">已选: 0</span>
+                        <span id="${config.countId}" style="color: #666;">已选: 0</span>
                     </div>
                     <div style="display: flex; gap: 10px;">
-                        <button class="btn btn-primary" onclick="practiceSelectedDictationMistakes()" style="flex: 1; padding: 10px 20px; font-size: 1em; font-weight: bold; cursor: pointer; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px;">
+                        <button class="btn btn-primary" onclick="practiceSelected${typeName === '看字选拼音' ? 'Dictation' : 'Sound'}Mistakes()" style="flex: 1; padding: 10px 20px; font-size: 1em; font-weight: bold; cursor: pointer; background: ${gradient}; color: white; border: none; border-radius: 10px;">
                             🎮 练习选中的错题
                         </button>
-                        <button class="btn" onclick="practiceAllDictationMistakes()" style="flex: 1; padding: 10px 20px; font-size: 1em; font-weight: bold; cursor: pointer; background: #f0f0f0; color: #666; border: none; border-radius: 10px;">
+                        <button class="btn" onclick="practiceAll${typeName === '看字选拼音' ? 'Dictation' : 'Sound'}Mistakes()" style="flex: 1; padding: 10px 20px; font-size: 1em; font-weight: bold; cursor: pointer; background: #f0f0f0; color: #666; border: none; border-radius: 10px;">
                             🔄 练习全部错题
                         </button>
                     </div>
@@ -2626,19 +2850,16 @@
                 <div class="mistake-list">
             `;
 
-            sortedMistakes.forEach((item, idx) => {
+            sortedMistakes.forEach((item) => {
                 const text = typeof item === 'object' ? item.text : item;
                 const count = typeof item === 'object' ? item.count : 1;
                 const lastWrong = typeof item === 'object' && item.lastWrong ? new Date(item.lastWrong).toLocaleString('zh-CN') : '';
                 const pinyin = getPinyin(text);
 
-                // 找到原始索引用于删除
-                const originalIdx = dictationMistakes.indexOf(item);
-
                 html += `
                     <div class="mistake-item">
                         <label style="display: flex; align-items: center; gap: 10px; flex: 1; cursor: pointer;">
-                            <input type="checkbox" class="dictation-mistake-checkbox" value="${escapeHtml(text)}" onchange="updateDictationSelectedCount()" style="width: 18px; height: 18px; cursor: pointer;">
+                            <input type="checkbox" class="${config.checkboxClass}" value="${escapeHtml(text)}" onchange="update${typeName === '看字选拼音' ? 'Dictation' : 'Sound'}SelectedCount()" style="width: 18px; height: 18px; cursor: pointer;">
                             <div style="flex: 1;">
                                 <span class="char">${escapeHtml(text)}</span>
                                 <span class="info">${escapeHtml(pinyin)}</span>
@@ -2646,96 +2867,26 @@
                                 ${lastWrong ? `<span class="info" style="margin-left: 10px; color: #999; font-size: 0.85em;">${lastWrong}</span>` : ''}
                             </div>
                         </label>
-                        <button class="remove-btn" onclick="removeFromMistakes('${text}', 'dictation')">移除</button>
+                        <button class="remove-btn" onclick="removeFromMistakes('${escapeJs(text)}', '${type}')">移除</button>
                     </div>
                 `;
             });
 
             html += '</div>';
 
-            const totalErrors = dictationMistakes.reduce((sum, m) => sum + (typeof m === 'object' ? m.count : 1), 0);
+            const totalErrors = mistakes.reduce((sum, m) => sum + (typeof m === 'object' ? m.count : 1), 0);
             html += `<p style="text-align: center; color: #666; margin-top: 15px;">累计错误 ${totalErrors} 次</p>`;
 
             container.innerHTML = html;
         }
 
-        // 更新听音选字错题集
+        // ========== 错题集更新函数（调用通用函数）==========
+        function updateDictationMistakesSection() {
+            renderMistakesSection('dictation');
+        }
+
         function updateSoundMistakesSection() {
-            const container = document.getElementById('mistakes-sound-content');
-
-            if (soundMistakes.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="emoji">✨</div>
-                        <p>暂时没有听音选字错题，继续加油！</p>
-                    </div>
-                `;
-                return;
-            }
-
-            // 按错误次数排序
-            const sortedMistakes = [...soundMistakes].sort((a, b) => {
-                const countA = typeof a === 'object' ? a.count : 1;
-                const countB = typeof b === 'object' ? b.count : 1;
-                return countB - countA;
-            });
-
-            let html = '';
-
-            // 添加字词选择区域
-            html += `
-                <div style="background: #f8f9ff; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                            <input type="checkbox" id="selectAllSoundMistakes" onchange="toggleAllSoundMistakes(this.checked)" style="width: 18px; height: 18px; cursor: pointer;">
-                            <span style="font-weight: bold; color: #764ba2;">全选 (${soundMistakes.length} 个)</span>
-                        </label>
-                        <span id="soundSelectedCount" style="color: #666;">已选: 0</span>
-                    </div>
-                    <div style="display: flex; gap: 10px;">
-                        <button class="btn btn-primary" onclick="practiceSelectedSoundMistakes()" style="flex: 1; padding: 10px 20px; font-size: 1em; font-weight: bold; cursor: pointer; background: linear-gradient(135deg, #764ba2 0%, #667eea 100%); color: white; border: none; border-radius: 10px;">
-                            🎮 练习选中的错题
-                        </button>
-                        <button class="btn" onclick="practiceAllSoundMistakes()" style="flex: 1; padding: 10px 20px; font-size: 1em; font-weight: bold; cursor: pointer; background: #f0f0f0; color: #666; border: none; border-radius: 10px;">
-                            🔄 练习全部错题
-                        </button>
-                    </div>
-                </div>
-
-                <div class="mistake-list">
-            `;
-
-            sortedMistakes.forEach((item, idx) => {
-                const text = typeof item === 'object' ? item.text : item;
-                const count = typeof item === 'object' ? item.count : 1;
-                const lastWrong = typeof item === 'object' && item.lastWrong ? new Date(item.lastWrong).toLocaleString('zh-CN') : '';
-                const pinyin = getPinyin(text);
-
-                // 找到原始索引用于删除
-                const originalIdx = soundMistakes.indexOf(item);
-
-                html += `
-                    <div class="mistake-item">
-                        <label style="display: flex; align-items: center; gap: 10px; flex: 1; cursor: pointer;">
-                            <input type="checkbox" class="sound-mistake-checkbox" value="${escapeHtml(text)}" onchange="updateSoundSelectedCount()" style="width: 18px; height: 18px; cursor: pointer;">
-                            <div style="flex: 1;">
-                                <span class="char">${escapeHtml(text)}</span>
-                                <span class="info">${escapeHtml(pinyin)}</span>
-                                <span class="info" style="margin-left: 10px; color: #eb3349;">❌ 错误 ${count} 次</span>
-                                ${lastWrong ? `<span class="info" style="margin-left: 10px; color: #999; font-size: 0.85em;">${lastWrong}</span>` : ''}
-                            </div>
-                        </label>
-                        <button class="remove-btn" onclick="removeFromMistakes('${text}', 'sound')">移除</button>
-                    </div>
-                `;
-            });
-
-            html += '</div>';
-
-            const totalErrors = soundMistakes.reduce((sum, m) => sum + (typeof m === 'object' ? m.count : 1), 0);
-            html += `<p style="text-align: center; color: #666; margin-top: 15px;">累计错误 ${totalErrors} 次</p>`;
-
-            container.innerHTML = html;
+            renderMistakesSection('sound');
         }
 
         // 清空看字选拼音错题
@@ -2758,120 +2909,39 @@
             }
         }
 
-        // 全选/取消全选看字选拼音错题
+        // ========== 错题集操作函数（调用通用辅助函数）==========
+        // 看字选拼音错题操作
         function toggleAllDictationMistakes(checked) {
-            const checkboxes = document.querySelectorAll('.dictation-mistake-checkbox');
-            checkboxes.forEach(cb => cb.checked = checked);
-            updateDictationSelectedCount();
+            toggleAllMistakes('dictation', checked);
         }
 
-        // 更新看字选拼音已选数量
         function updateDictationSelectedCount() {
-            const checkboxes = document.querySelectorAll('.dictation-mistake-checkbox:checked');
-            const count = checkboxes.length;
-            const countSpan = document.getElementById('dictationSelectedCount');
-            if (countSpan) countSpan.textContent = `已选: ${count}`;
-
-            // 更新全选复选框状态
-            const allCheckboxes = document.querySelectorAll('.dictation-mistake-checkbox');
-            const selectAll = document.getElementById('selectAllDictationMistakes');
-            if (selectAll) {
-                selectAll.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
-                selectAll.indeterminate = count > 0 && count < allCheckboxes.length;
-            }
+            updateMistakeSelectedCount('dictation');
         }
 
-        // 全选/取消全选听音选字错题
-        function toggleAllSoundMistakes(checked) {
-            const checkboxes = document.querySelectorAll('.sound-mistake-checkbox');
-            checkboxes.forEach(cb => cb.checked = checked);
-            updateSoundSelectedCount();
-        }
-
-        // 更新听音选字已选数量
-        function updateSoundSelectedCount() {
-            const checkboxes = document.querySelectorAll('.sound-mistake-checkbox:checked');
-            const count = checkboxes.length;
-            const countSpan = document.getElementById('soundSelectedCount');
-            if (countSpan) countSpan.textContent = `已选: ${count}`;
-
-            // 更新全选复选框状态
-            const allCheckboxes = document.querySelectorAll('.sound-mistake-checkbox');
-            const selectAll = document.getElementById('selectAllSoundMistakes');
-            if (selectAll) {
-                selectAll.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
-                selectAll.indeterminate = count > 0 && count < allCheckboxes.length;
-            }
-        }
-
-        // 练习选中的看字选拼音错题
         function practiceSelectedDictationMistakes() {
-            const checkboxes = document.querySelectorAll('.dictation-mistake-checkbox:checked');
-            const selectedWords = Array.from(checkboxes).map(cb => cb.value);
-
-            if (selectedWords.length < 1) {
-                alert('请至少选择 1 个字词进行练习');
-                return;
-            }
-
-            // 切换到看字选拼音练习标签
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.practice-section').forEach(s => s.classList.remove('active'));
-            document.querySelector('[data-tab="practice"]').classList.add('active');
-            document.getElementById('practice-section').classList.add('active');
-            showPinyinQuizUI(document.getElementById('practice-content'), selectedWords);
+            practiceMistakes('dictation', 'selected');
         }
 
-        // 练习全部看字选拼音错题
         function practiceAllDictationMistakes() {
-            const words = dictationMistakes.map(m => typeof m === 'object' ? m.text : m);
-
-            if (words.length < 1) {
-                alert('暂无错题可练习');
-                return;
-            }
-
-            // 切换到看字选拼音练习标签
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.practice-section').forEach(s => s.classList.remove('active'));
-            document.querySelector('[data-tab="practice"]').classList.add('active');
-            document.getElementById('practice-section').classList.add('active');
-            showPinyinQuizUI(document.getElementById('practice-content'), words);
+            practiceMistakes('dictation', 'all');
         }
 
-        // 练习选中的听音选字错题
+        // 听音选字错题操作
+        function toggleAllSoundMistakes(checked) {
+            toggleAllMistakes('sound', checked);
+        }
+
+        function updateSoundSelectedCount() {
+            updateMistakeSelectedCount('sound');
+        }
+
         function practiceSelectedSoundMistakes() {
-            const checkboxes = document.querySelectorAll('.sound-mistake-checkbox:checked');
-            const selectedWords = Array.from(checkboxes).map(cb => cb.value);
-
-            if (selectedWords.length < 2) {
-                alert('请至少选择 2 个字词进行练习');
-                return;
-            }
-
-            // 切换到听音选字练习标签
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.practice-section').forEach(s => s.classList.remove('active'));
-            document.querySelector('[data-tab="sound"]').classList.add('active');
-            document.getElementById('sound-section').classList.add('active');
-            startGameWithWords(selectedWords);
+            practiceMistakes('sound', 'selected');
         }
 
-        // 练习全部听音选字错题
         function practiceAllSoundMistakes() {
-            const words = soundMistakes.map(m => typeof m === 'object' ? m.text : m);
-
-            if (words.length < 2) {
-                alert('请至少有 2 个错题才能开始练习');
-                return;
-            }
-
-            // 切换到听音选字练习标签
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.practice-section').forEach(s => s.classList.remove('active'));
-            document.querySelector('[data-tab="sound"]').classList.add('active');
-            document.getElementById('sound-section').classList.add('active');
-            startGameWithWords(words);
+            practiceMistakes('sound', 'all');
         }
 
         // 更新统计
