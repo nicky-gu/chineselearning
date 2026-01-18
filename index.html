@@ -1246,6 +1246,16 @@
             updateLoginUI();
         }
 
+        // 原始保存函数（只保存到 localStorage）
+        function saveMistakes() {
+            localStorage.setItem('hanzi_mistakes', JSON.stringify(mistakes));
+        }
+
+        function saveStats() {
+            stats.lastPractice = new Date().toISOString();
+            localStorage.setItem('hanzi_stats', JSON.stringify(stats));
+        }
+
         // 覆盖原有的保存函数以支持自动同步
         const originalSaveMistakes = saveMistakes;
         const originalSaveStats = saveStats;
@@ -1352,15 +1362,6 @@
             saveMistakes();
             updateMistakesSection();
             updateStatsSection();
-        }
-
-        function saveMistakes() {
-            localStorage.setItem('hanzi_mistakes', JSON.stringify(mistakes));
-        }
-
-        function saveStats() {
-            stats.lastPractice = new Date().toISOString();
-            localStorage.setItem('hanzi_stats', JSON.stringify(stats));
         }
 
         function clearMistakes() {
