@@ -793,7 +793,7 @@
             <p>输入字或词组，用空格或逗号分隔，开始练习吧！</p>
             <div id="userInfoSection" style="display: none;">
                 <div class="user-info">
-                    <span>你好，<span class="username" id="displayUsername"></span>！</span>
+                    <span>已登录云端同步</span>
                     <span class="logout-link" onclick="handleLogout()">退出登录</span>
                 </div>
                 <div class="sync-section">
@@ -918,11 +918,7 @@
         <div class="modal-overlay" id="loginModal">
             <div class="modal">
                 <h2 id="modalTitle">🔐 登录 / 注册</h2>
-                <p>输入你的名字和8位PIN码来同步学习数据</p>
-                <div class="form-group">
-                    <label for="usernameInput">用户名</label>
-                    <input type="text" id="usernameInput" placeholder="输入用户名" maxlength="20" autocomplete="off">
-                </div>
+                <p>输入8位PIN码来同步学习数据</p>
                 <div class="form-group">
                     <label for="pinInput">8位PIN码</label>
                     <input type="number" id="pinInput" placeholder="输入8位数字" maxlength="8" min="0" max="99999999">
@@ -950,7 +946,7 @@
         let soundAnswered = false;
 
         // ========== 云同步相关 ==========
-        let currentUser = null;  // { username: string, gistUrl: string, gistId: string }
+        let currentUser = null;  // { gistUrl: string, gistId: string, gistApiUrl: string }
         let currentPin = null;   // 存储在内存中，用于加密解密
 
         // 加密/解密函数 (使用 AES)
@@ -971,15 +967,15 @@
         }
 
         // 生成唯一的用户ID
-        function generateUserId(username) {
+        function generateUserId() {
             const timestamp = Date.now().toString(36);
             const random = Math.random().toString(36).substring(2, 8);
-            return `${username}_${timestamp}_${random}`;
+            return `user_${timestamp}_${random}`;
         }
 
         // GitHub Gist API 函数
-        async function createGist(username, pin) {
-            const userId = generateUserId(username);
+        async function createGist(pin) {
+            const userId = generateUserId();
             const data = {
                 mistakes: mistakes,
                 stats: stats,
@@ -989,7 +985,7 @@
             const encrypted = encryptData(data, pin);
 
             const gistData = {
-                description: `快乐学汉字 - ${username} 的学习数据`,
+                description: `快乐学汉字 - 学习数据`,
                 public: false,
                 files: {
                     'hanzi_learning_data.json': {
@@ -1070,9 +1066,8 @@
         function openLoginModal() {
             document.getElementById('loginModal').classList.add('active');
             document.getElementById('loginMessage').innerHTML = '';
-            document.getElementById('usernameInput').value = '';
             document.getElementById('pinInput').value = '';
-            document.getElementById('usernameInput').focus();
+            document.getElementById('pinInput').focus();
         }
 
         function closeLoginModal() {
@@ -1081,15 +1076,10 @@
 
         // 登录/注册处理
         async function handleLogin() {
-            const username = document.getElementById('usernameInput').value.trim();
             const pin = document.getElementById('pinInput').value.trim();
             const messageDiv = document.getElementById('loginMessage');
 
             // 验证输入
-            if (!username) {
-                messageDiv.innerHTML = '<div class="error-message">请输入用户名</div>';
-                return;
-            }
             if (!/^\d{8}$/.test(pin)) {
                 messageDiv.innerHTML = '<div class="error-message">请输入8位数字PIN码</div>';
                 return;
@@ -1098,39 +1088,45 @@
             messageDiv.innerHTML = '<div class="success-message">正在处理...</div>';
 
             try {
-                // 检查是否是现有用户（从本地存储查找）
-                const users = JSON.parse(localStorage.getItem('hanzi_cloud_users') || '{}');
-                const existingUser = users[username];
+                // 检查是否是现有用户（从本地存储查找，用 PIN 码作为 key）
+                const gistData = JSON.parse(localStorage.getItem('hanzi_gist_data') || '{}');
+                const existingGist = gistData[pin];
 
-                if (existingUser) {
+                if (existingGist) {
                     // 现有用户 - 尝试从 Gist 获取数据
-                    const gist = await getGist(existingUser.gistId);
-                    const fileName = Object.keys(gist.files)[0];
-                    const content = JSON.parse(gist.files[fileName].content);
+                    try {
+                        const gist = await getGist(existingGist.gistId);
+                        const fileName = Object.keys(gist.files)[0];
+                        const content = JSON.parse(gist.files[fileName].content);
 
-                    // 使用 PIN 解密数据
-                    const decryptedData = decryptData(content.encrypted, pin);
+                        // 使用 PIN 解密数据
+                        const decryptedData = decryptData(content.encrypted, pin);
 
-                    if (!decryptedData) {
-                        messageDiv.innerHTML = '<div class="error-message">PIN码错误，无法解密数据</div>';
-                        return;
+                        if (!decryptedData) {
+                            messageDiv.innerHTML = '<div class="error-message">PIN码错误，无法解密数据</div>';
+                            return;
+                        }
+
+                        // 解密成功，加载数据
+                        mistakes = decryptedData.mistakes || [];
+                        stats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
+
+                        currentUser = existingGist;
+                        currentPin = pin;
+
+                        saveLocalData();
+                        messageDiv.innerHTML = '<div class="success-message">登录成功！数据已同步</div>';
+                    } catch (e) {
+                        messageDiv.innerHTML = '<div class="error-message">云端数据不存在，将创建新账户</div>';
+                        // 继续创建新账户
                     }
+                }
 
-                    // 解密成功，加载数据
-                    mistakes = decryptedData.mistakes || [];
-                    stats = decryptedData.stats || { totalLearned: 0, totalPractice: 0, correctCount: 0 };
-
-                    currentUser = existingUser;
-                    currentPin = pin;
-
-                    saveLocalData();
-                    messageDiv.innerHTML = '<div class="success-message">登录成功！数据已同步</div>';
-                } else {
+                if (!currentUser) {
                     // 新用户 - 创建 Gist
-                    const gistInfo = await createGist(username, pin);
+                    const gistInfo = await createGist(pin);
 
                     currentUser = {
-                        username: username,
                         gistUrl: gistInfo.gistUrl,
                         gistId: gistInfo.gistId,
                         gistApiUrl: gistInfo.gistApiUrl,
@@ -1138,8 +1134,9 @@
                     };
                     currentPin = pin;
 
-                    users[username] = currentUser;
-                    localStorage.setItem('hanzi_cloud_users', JSON.stringify(users));
+                    // 用 PIN 码作为 key 存储 Gist 信息
+                    gistData[pin] = currentUser;
+                    localStorage.setItem('hanzi_gist_data', JSON.stringify(gistData));
                     saveLocalData();
 
                     messageDiv.innerHTML = '<div class="success-message">注册成功！已创建云端备份</div>';
@@ -1177,7 +1174,6 @@
             if (currentUser) {
                 userInfoSection.style.display = 'block';
                 loginPrompt.style.display = 'none';
-                document.getElementById('displayUsername').textContent = currentUser.username;
                 updateSyncStatus('synced', '已同步');
             } else {
                 userInfoSection.style.display = 'none';
@@ -1237,14 +1233,8 @@
 
         // 初始化：检查是否有已登录用户
         function initCloudSync() {
-            const users = JSON.parse(localStorage.getItem('hanzi_cloud_users') || '{}');
-            const lastUser = localStorage.getItem('hanzi_last_user');
-
-            if (lastUser && users[lastUser]) {
-                // 有上次登录的用户，但需要重新输入 PIN
-                // 不自动登录，显示登录按钮
-            }
-
+            // 不自动登录，用户需要每次输入 PIN 码
+            // 只显示登录按钮
             updateLoginUI();
         }
 
