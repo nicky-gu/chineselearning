@@ -1321,7 +1321,8 @@
         document.getElementById('charInput').addEventListener('input', (e) => {
             const selectionStart = e.target.selectionStart;
             const originalValue = e.target.value;
-            const filteredValue = originalValue.replace(/[^\u4e00-\u9fa5\s,，、\n]/g, '');
+            // 只允许中文、空格、逗号、顿号
+            const filteredValue = originalValue.replace(/[^\u4e00-\u9fa5,，、\s]/g, '');
 
             if (filteredValue !== originalValue) {
                 e.target.value = filteredValue;
@@ -1346,7 +1347,19 @@
                 return;
             }
 
-            const newChars = value.split(/[\s,，、\n]+/).filter(s => s.trim());
+            // 使用更简单的分隔符处理：先替换所有分隔符为空格，然后按空格分割
+            const normalized = value
+                .replace(/,/g, ' ')
+                .replace(/，/g, ' ')
+                .replace(/、/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            if (!normalized) {
+                return;
+            }
+
+            const newChars = normalized.split(' ').filter(s => s.length > 0);
             if (newChars.length === 0) {
                 return;
             }
