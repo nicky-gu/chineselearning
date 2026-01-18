@@ -842,26 +842,20 @@
         </header>
 
         <div class="card input-section">
-            <h2>✏️ 输入汉字</h2>
-            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
-                <input type="text" id="charInput" placeholder="输入字或词组，用空格或逗号分隔" maxlength="100" style="flex: 1;">
-                <button onclick="addInput()" class="action-btn" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 12px 25px; white-space: nowrap; border: none;">
-                    ➕ 添加
+            <h2>✏️ 输入新字开始学习</h2>
+            <p style="color: #666; margin-bottom: 10px; font-size: 0.9em;">输入想要学习的汉字或词组，用空格、逗号分隔</p>
+
+            <input type="text" id="charInput" placeholder="例如：天 地 人 或 天,地,人" maxlength="100" style="width: 100%; padding: 15px; font-size: 1.2em; border: 2px solid #ddd; border-radius: 10px; text-align: center; margin-bottom: 15px; box-sizing: border-box;">
+
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button onclick="startLearningWithInput('pinyin')" class="action-btn" style="flex: 1; min-width: 200px; padding: 15px; font-size: 1.1em; font-weight: bold; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; cursor: pointer; white-space: nowrap;">
+                    ✍️ 看字选拼音练习
                 </button>
-                <button onclick="clearInput()" class="action-btn" style="background: #f0f0f0; color: #666; padding: 12px 20px; white-space: nowrap; border: none;">
-                    清空输入
+                <button onclick="startLearningWithInput('sound')" class="action-btn" style="flex: 1; min-width: 200px; padding: 15px; font-size: 1.1em; font-weight: bold; background: linear-gradient(135deg, #764ba2 0%, #667eea 100%); color: white; border: none; border-radius: 10px; cursor: pointer; white-space: nowrap;">
+                    👂 听音选字练习
                 </button>
             </div>
-            <div id="addedWordsPreview" style="min-height: 30px; padding: 10px; background: #f8f9ff; border-radius: 10px; font-size: 0.9em; color: #666; display: none;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <span style="font-weight: bold; color: #667eea;">已添加:</span> <span id="addedWordsList"></span>
-                    </div>
-                    <button onclick="clearAll()" class="action-btn" style="background: #fff; color: #eb3349; padding: 6px 12px; font-size: 0.85em; border: 1px solid #eb3349;">
-                        清空全部
-                    </button>
-                </div>
-            </div>
+            <p id="inputError" style="color: #eb3349; margin-top: 10px; text-align: center; display: none;"></p>
         </div>
 
         <!-- 统计 (默认显示，不在标签页中) -->
@@ -943,10 +937,6 @@
                 <h2>✍️ 看字选拼音</h2>
             </div>
             <div id="practice-content">
-                <div class="empty-state">
-                    <div class="emoji">📖</div>
-                    <p>请先输入字或词组</p>
-                </div>
             </div>
         </div>
 
@@ -1640,24 +1630,31 @@
             }
         });
 
-        // 监听回车键 - 触发添加（在非输入法状态下）
+        // 监听回车键 - 默认触发看字选拼音练习
         charInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !isComposing) {
                 e.preventDefault();
-                addInput();
+                startLearningWithInput('pinyin');
             }
         });
 
-        // 添加输入的内容
-        function addInput() {
+        // 使用输入的字词开始学习
+        function startLearningWithInput(mode) {
             const input = document.getElementById('charInput');
+            const errorDiv = document.getElementById('inputError');
             const value = input.value.trim();
 
+            // 清空之前的错误提示
+            errorDiv.style.display = 'none';
+
             if (!value) {
+                errorDiv.textContent = '⚠️ 请输入要学习的字或词组';
+                errorDiv.style.display = 'block';
+                input.focus();
                 return;
             }
 
-            // 使用更简单的分隔符处理：先替换所有分隔符为空格，然后按空格分割
+            // 处理分隔符
             const normalized = value
                 .replace(/,/g, ' ')
                 .replace(/，/g, ' ')
@@ -1665,59 +1662,47 @@
                 .replace(/\s+/g, ' ')
                 .trim();
 
-            if (!normalized) {
+            const words = normalized.split(' ').filter(s => s.length > 0);
+
+            if (words.length === 0) {
+                errorDiv.textContent = '⚠️ 请输入有效的汉字';
+                errorDiv.style.display = 'block';
+                input.focus();
                 return;
             }
 
-            const newChars = normalized.split(' ').filter(s => s.length > 0);
-            if (newChars.length === 0) {
+            // 根据模式检查字词数量
+            if (mode === 'sound' && words.length < 2) {
+                errorDiv.textContent = '⚠️ 听音选字练习至少需要 2 个字词';
+                errorDiv.style.display = 'block';
+                input.focus();
                 return;
             }
 
-            // 合并去重
-            currentChars = [...new Set([...currentChars, ...newChars])];
-            updateAllSections();
-            updateAddedWordsPreview();
-
-            // 清空输入框并聚焦
+            // 清空输入框
             input.value = '';
-            lastProcessedValue = '';  // 重置处理状态
-            input.focus();
-        }
+            lastProcessedValue = '';
 
-        // 清空输入框
-        function clearInput() {
-            const input = document.getElementById('charInput');
-            input.value = '';
-            lastProcessedValue = '';  // 重置处理状态
-            input.focus();
-        }
+            // 切换到对应的练习标签页
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.practice-section').forEach(s => s.classList.remove('active'));
 
-        // 清空所有已添加的内容
-        function clearAll() {
-            if (confirm('确定要清空所有已添加的字词吗？')) {
-                currentChars = [];
-                updateAllSections();
-                updateAddedWordsPreview();
-            }
-        }
-
-        // 更新已添加字词预览
-        function updateAddedWordsPreview() {
-            const preview = document.getElementById('addedWordsPreview');
-            const list = document.getElementById('addedWordsList');
-
-            if (currentChars.length > 0) {
-                preview.style.display = 'block';
-                list.textContent = currentChars.join('、');
+            if (mode === 'pinyin') {
+                // 看字选拼音练习
+                document.querySelector('[data-tab="practice"]').classList.add('active');
+                document.getElementById('practice-section').classList.add('active');
+                showPinyinQuizUI(document.getElementById('practice-content'), words);
             } else {
-                preview.style.display = 'none';
+                // 听音选字练习
+                document.querySelector('[data-tab="sound"]').classList.add('active');
+                document.getElementById('sound-section').classList.add('active');
+                startGameWithWords(words);
             }
         }
 
+        // updateAllSections 不再需要，因为练习模式直接使用输入的字词
         function updateAllSections() {
-            updatePracticeSection();
-            updateSoundSection();
+            // 空函数，保留以避免错误
         }
 
         // 转义HTML特殊字符
@@ -1818,16 +1803,15 @@
         function updatePracticeSection() {
             const container = document.getElementById('practice-content');
 
-            // 优先使用看字选拼音错题集，其次使用当前输入的字词
-            const practiceWords = dictationMistakes.length > 0
-                ? dictationMistakes.map(m => typeof m === 'object' ? m.text : m)
-                : currentChars;
+            // 只使用看字选拼音错题集
+            const practiceWords = dictationMistakes.map(m => typeof m === 'object' ? m.text : m);
 
             if (practiceWords.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
                         <div class="emoji">📝</div>
-                        <p>请先输入字词，或积累一些看字选拼音错题后开始练习</p>
+                        <p>请先在上方输入框输入字词开始学习</p>
+                        <p style="color: #999; font-size: 0.9em; margin-top: 10px;">练习答错的字会自动加入这里</p>
                     </div>
                 `;
                 return;
@@ -1845,15 +1829,9 @@
             window.pinyinQuizIndex = 0;
             window.pinyinQuizScore = 0;
 
-            // 如果有看字选拼音错题集，提示用户
-            const isUsingMistakes = dictationMistakes.length > 0;
-            const hintMessage = isUsingMistakes
-                ? `<p style="text-align: center; color: #667eea; font-weight: bold; margin-bottom: 15px;">🎯 正在练习看字选拼音错题集中的 ${words.length} 个字</p>`
-                : `<p style="text-align: center; color: #666; margin-bottom: 15px;">📝 正在练习 ${words.length} 个字词</p>`;
-
             container.innerHTML = `
                 <div class="pinyin-quiz-container">
-                    ${hintMessage}
+                    <p style="text-align: center; color: #666; margin-bottom: 15px;">📝 正在练习 ${words.length} 个字词</p>
 
                     <div class="dictation-progress" style="text-align: center; margin-bottom: 20px; padding: 15px; background: #f8f9ff; border-radius: 10px;">
                         <div style="font-size: 1.2em; font-weight: bold; color: #667eea;">
@@ -2366,19 +2344,14 @@
                 return;
             }
 
-            // 没有听音错题集，使用当前输入的字词
-            if (currentChars.length < 2) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="emoji">🎮</div>
-                        <p>请至少输入2个字或词组，或积累一些听音错题后使用听音选字练习</p>
-                    </div>
-                `;
-                return;
-            }
-
-            // 直接使用当前字词开始游戏
-            startGameWithWords(currentChars);
+            // 没有听音错题集，显示提示
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="emoji">🎮</div>
+                    <p>请先在上方输入框输入字词开始学习</p>
+                    <p style="color: #999; font-size: 0.9em; margin-top: 10px;">练习答错的字会自动加入这里</p>
+                </div>
+            `;
         }
 
         // 显示字词选择界面
@@ -2582,13 +2555,8 @@
         }
 
         function practiceMistakes() {
-            currentChars = soundMistakes.map(m => typeof m === 'object' ? m.text : m);
-            document.getElementById('charInput').value = currentChars.join(' ');
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.practice-section').forEach(s => s.classList.remove('active'));
-            document.querySelector('[data-tab="sound"]').classList.add('active');
-            document.getElementById('sound-section').classList.add('active');
-            updateSoundSection();
+            // 直接练习听音错题
+            practiceAllSoundMistakes();
         }
 
         // 更新看字选拼音错题集
