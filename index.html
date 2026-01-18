@@ -818,11 +818,24 @@
 
         <div class="card input-section">
             <h2>✏️ 输入汉字</h2>
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <input type="text" id="charInput" placeholder="输入字或词组，用空格或逗号分隔，比如：山水 天空 鸟儿" maxlength="100" style="flex: 1;">
-                <button onclick="clearInput()" class="action-btn" style="background: #f0f0f0; color: #666; padding: 12px 20px; white-space: nowrap;">
-                    🗑️ 清空
+            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
+                <input type="text" id="charInput" placeholder="输入字或词组，用空格或逗号分隔" maxlength="100" style="flex: 1;">
+                <button onclick="addInput()" class="action-btn" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 12px 25px; white-space: nowrap; border: none;">
+                    ➕ 添加
                 </button>
+                <button onclick="clearInput()" class="action-btn" style="background: #f0f0f0; color: #666; padding: 12px 20px; white-space: nowrap; border: none;">
+                    清空输入
+                </button>
+            </div>
+            <div id="addedWordsPreview" style="min-height: 30px; padding: 10px; background: #f8f9ff; border-radius: 10px; font-size: 0.9em; color: #666; display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span style="font-weight: bold; color: #667eea;">已添加:</span> <span id="addedWordsList"></span>
+                    </div>
+                    <button onclick="clearAll()" class="action-btn" style="background: #fff; color: #eb3349; padding: 6px 12px; font-size: 0.85em; border: 1px solid #eb3349;">
+                        清空全部
+                    </button>
+                </div>
             </div>
             <div class="section-tabs">
                 <button class="tab-btn active" data-tab="pinyin">🔊 拼音学习</button>
@@ -1304,10 +1317,9 @@
             });
         });
 
-        // 监听输入
+        // 监听输入 - 只过滤非法字符，不自动更新
         document.getElementById('charInput').addEventListener('input', (e) => {
             const selectionStart = e.target.selectionStart;
-            const selectionEnd = e.target.selectionEnd;
             const originalValue = e.target.value;
             const filteredValue = originalValue.replace(/[^\u4e00-\u9fa5\s,，、\n]/g, '');
 
@@ -1316,18 +1328,66 @@
                 const newCursorPos = Math.max(0, selectionStart - (originalValue.length - filteredValue.length));
                 e.target.setSelectionRange(newCursorPos, newCursorPos);
             }
-
-            currentChars = [...new Set(filteredValue.split(/[\s,，、\n]+/).filter(s => s.trim()))];
-            updateAllSections();
         });
+
+        // 监听回车键 - 触发添加
+        document.getElementById('charInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                addInput();
+            }
+        });
+
+        // 添加输入的内容
+        function addInput() {
+            const input = document.getElementById('charInput');
+            const value = input.value.trim();
+
+            if (!value) {
+                return;
+            }
+
+            const newChars = value.split(/[\s,，、\n]+/).filter(s => s.trim());
+            if (newChars.length === 0) {
+                return;
+            }
+
+            // 合并去重
+            currentChars = [...new Set([...currentChars, ...newChars])];
+            updateAllSections();
+            updateAddedWordsPreview();
+
+            // 清空输入框并聚焦
+            input.value = '';
+            input.focus();
+        }
 
         // 清空输入框
         function clearInput() {
             const input = document.getElementById('charInput');
             input.value = '';
-            currentChars = [];
-            updateAllSections();
             input.focus();
+        }
+
+        // 清空所有已添加的内容
+        function clearAll() {
+            if (confirm('确定要清空所有已添加的字词吗？')) {
+                currentChars = [];
+                updateAllSections();
+                updateAddedWordsPreview();
+            }
+        }
+
+        // 更新已添加字词预览
+        function updateAddedWordsPreview() {
+            const preview = document.getElementById('addedWordsPreview');
+            const list = document.getElementById('addedWordsList');
+
+            if (currentChars.length > 0) {
+                preview.style.display = 'block';
+                list.textContent = currentChars.join('、');
+            } else {
+                preview.style.display = 'none';
+            }
         }
 
         function updateAllSections() {
